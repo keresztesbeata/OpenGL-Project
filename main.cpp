@@ -56,7 +56,7 @@ GLfloat angle = 0.0f;
 gps::Model3D teapot;
 
 // shaders
-gps::Shader myBasicShader;
+gps::Shader basicShader;
 
 // check errors
 GLenum glCheckError_(const char* file, int line);
@@ -70,15 +70,26 @@ float mouseSensitivity = 0.1f;
 bool firstMouseMovement = true;
 bool allowMouseMovements = false;
 
+/* initialize window, matrices and shaders, and add callbacks */
+void initOpenGLWindow();
+void setWindowCallbacks();
+void initOpenGLState();
+void initModels();
+void initShaders();
+void initUniforms(gps::Shader shader);
+
 /* functions for processing movement actions */
 void processMovement();
 void processObjectMovement();
 void processCameraMovement();
 
 /* functions for updating the transformation matrices after the camera or the object has moved*/
-void updateAfterStraightLineMovement();
-void updateAfterRotationMovement();
 void updateUniforms();
+void updateTransformationMatrices();
+
+/* render scene of objects */
+void renderScene();
+void renderTeapot(gps::Shader shader);
 
 /* callback functions for handling user interactions */
 void windowResizeCallback(GLFWwindow* window, int width, int height);
@@ -86,106 +97,8 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
 void mouseCallback(GLFWwindow* window, double xpos, double ypos);
 void mousButtonCallback(GLFWwindow* window, int button, int action, int mods);
 
-void initOpenGLWindow() {
-    myWindow.Create(myWindowWidth, myWindowHeight, "OpenGL Project");
-}
-
-void setWindowCallbacks() {
-	glfwSetWindowSizeCallback(myWindow.getWindow(), windowResizeCallback);
-    glfwSetKeyCallback(myWindow.getWindow(), keyboardCallback);
-    glfwSetCursorPosCallback(myWindow.getWindow(), mouseCallback);
-    glfwSetMouseButtonCallback(myWindow.getWindow(), mousButtonCallback);
-}
-
-void initOpenGLState() {
-	glClearColor(0.7f, 0.7f, 0.7f, 1.0f);
-	glViewport(0, 0, myWindow.getWindowDimensions().width, myWindow.getWindowDimensions().height);
-    glEnable(GL_FRAMEBUFFER_SRGB);
-	glEnable(GL_DEPTH_TEST); // enable depth-testing
-	glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
-	glEnable(GL_CULL_FACE); // cull face
-	glCullFace(GL_BACK); // cull back face
-	glFrontFace(GL_CCW); // GL_CCW for counter clock-wise
-}
-
-void initModels() {
-    teapot.LoadModel("models/teapot/teapot20segUT.obj");
-}
-
-void initShaders() {
-	myBasicShader.loadShader(
-        "shaders/basic.vert",
-        "shaders/basic.frag");
-}
-
-void initUniforms(gps::Shader shader) {
-	shader.useShaderProgram();
-
-    // create model matrix for teapot
-    model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
-	modelLoc = glGetUniformLocation(shader.shaderProgram, "model");
-
-	// get view matrix for current camera
-	view = myCamera.getViewMatrix();
-	viewLoc = glGetUniformLocation(shader.shaderProgram, "view");
-	// send view matrix to shader
-    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
-    // compute normal matrix for teapot
-    normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
-	normalMatrixLoc = glGetUniformLocation(shader.shaderProgram, "normalMatrix");
-
-	// create projection matrix
-	projection = glm::perspective(glm::radians(45.0f),
-                               (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
-                               0.1f, 20.0f);
-	projectionLoc = glGetUniformLocation(shader.shaderProgram, "projection");
-	// send projection matrix to shader
-	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));	
-
-	//set the light direction (direction towards the light)
-	lightDir = glm::vec3(0.0f, 1.0f, 1.0f);
-    //lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
-	lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
-	// send light dir to shader
-	glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
-
-	//set light color
-	lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
-	lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
-	// send light color to shader
-	glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
-}
-
-void renderTeapot(gps::Shader shader) {
-    // select active shader program
-    shader.useShaderProgram();
-
-    updateUniforms();
-
-    // draw teapot
-    teapot.Draw(shader);
-}
-
-void renderScene() {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    //render the scene
-
-    // render the teapot
-    renderTeapot(myBasicShader);
-
-}
-
-void processMovement() {
-    processCameraMovement();
-    processObjectMovement();
-}
-
-void cleanup() {
-    myWindow.Delete();
-    //cleanup code for your own data
-}
+/* clean-up*/
+void cleanup();
 
 int main(int argc, const char * argv[]) {
 
@@ -199,7 +112,7 @@ int main(int argc, const char * argv[]) {
     initOpenGLState();
 	initModels();
 	initShaders();
-	initUniforms(myBasicShader);
+	initUniforms(basicShader);
     setWindowCallbacks();
 
 	glCheckError();
@@ -219,25 +132,27 @@ int main(int argc, const char * argv[]) {
     return EXIT_SUCCESS;
 }
 
+
+void processMovement() {
+    processCameraMovement();
+    processObjectMovement();
+}
+
 void processCameraMovement() {
     if (pressedKeys[GLFW_KEY_W]) {
         myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
-        updateAfterStraightLineMovement();
     }
 
     if (pressedKeys[GLFW_KEY_S]) {
         myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
-        updateAfterStraightLineMovement();
     }
 
     if (pressedKeys[GLFW_KEY_A]) {
         myCamera.move(gps::MOVE_LEFT, cameraSpeed);
-        updateAfterStraightLineMovement();
     }
 
     if (pressedKeys[GLFW_KEY_D]) {
         myCamera.move(gps::MOVE_RIGHT, cameraSpeed);
-        updateAfterStraightLineMovement();
     }
 
     if (pressedKeys[GLFW_KEY_I]) {
@@ -249,26 +164,26 @@ void processCameraMovement() {
 void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
-        updateAfterRotationMovement();
     }
 
     if (pressedKeys[GLFW_KEY_E]) {
         angle += 1.0f;
-        updateAfterRotationMovement();
     }
 }
 
-void updateAfterStraightLineMovement() {
+void updateTransformationMatrices() {
     //update view matrix
     view = myCamera.getViewMatrix();
+
     // compute normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
-}
 
-void updateAfterRotationMovement() {
     // update model matrix for teapot
     model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
+
+    // get view matrix of camera
     view = myCamera.getViewMatrix();
+
     // update normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
@@ -293,16 +208,143 @@ void updateUniforms() {
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
 }
 
+
+void renderTeapot(gps::Shader shader) {
+    // select active shader program
+    shader.useShaderProgram();
+
+    updateTransformationMatrices();
+    updateUniforms();
+
+    // draw teapot
+    teapot.Draw(shader);
+}
+
+void renderScene() {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    //render the scene
+
+    // render the teapot
+    renderTeapot(basicShader);
+
+}
+
+
+GLenum glCheckError_(const char* file, int line)
+{
+    GLenum errorCode;
+    while ((errorCode = glGetError()) != GL_NO_ERROR) {
+        std::string error;
+        switch (errorCode) {
+        case GL_INVALID_ENUM:
+            error = "INVALID_ENUM";
+            break;
+        case GL_INVALID_VALUE:
+            error = "INVALID_VALUE";
+            break;
+        case GL_INVALID_OPERATION:
+            error = "INVALID_OPERATION";
+            break;
+        case GL_STACK_OVERFLOW:
+            error = "STACK_OVERFLOW";
+            break;
+        case GL_STACK_UNDERFLOW:
+            error = "STACK_UNDERFLOW";
+            break;
+        case GL_OUT_OF_MEMORY:
+            error = "OUT_OF_MEMORY";
+            break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION:
+            error = "INVALID_FRAMEBUFFER_OPERATION";
+            break;
+        }
+        std::cout << error << " | " << file << " (" << line << ")" << std::endl;
+    }
+    return errorCode;
+}
+
+void initOpenGLWindow() {
+    myWindow.Create(myWindowWidth, myWindowHeight, "OpenGL Project");
+}
+
+void setWindowCallbacks() {
+    glfwSetWindowSizeCallback(myWindow.getWindow(), windowResizeCallback);
+    glfwSetKeyCallback(myWindow.getWindow(), keyboardCallback);
+    glfwSetCursorPosCallback(myWindow.getWindow(), mouseCallback);
+    glfwSetMouseButtonCallback(myWindow.getWindow(), mousButtonCallback);
+}
+
+void initOpenGLState() {
+    glClearColor(0.7f, 0.7f, 0.7f, 1.0f);
+    glViewport(0, 0, myWindow.getWindowDimensions().width, myWindow.getWindowDimensions().height);
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    glEnable(GL_DEPTH_TEST); // enable depth-testing
+    glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
+    glEnable(GL_CULL_FACE); // cull face
+    glCullFace(GL_BACK); // cull back face
+    glFrontFace(GL_CCW); // GL_CCW for counter clock-wise
+}
+
+void initModels() {
+    teapot.LoadModel("models/teapot/teapot20segUT.obj");
+}
+
+void initShaders() {
+    basicShader.loadShader(
+        "shaders/basic.vert",
+        "shaders/basic.frag");
+}
+
+void initUniforms(gps::Shader shader) {
+    shader.useShaderProgram();
+
+    // create model matrix for teapot
+    model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+    modelLoc = glGetUniformLocation(shader.shaderProgram, "model");
+
+    // get view matrix for current camera
+    view = myCamera.getViewMatrix();
+    viewLoc = glGetUniformLocation(shader.shaderProgram, "view");
+    // send view matrix to shader
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+
+    // compute normal matrix for teapot
+    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+    normalMatrixLoc = glGetUniformLocation(shader.shaderProgram, "normalMatrix");
+
+    // create projection matrix
+    projection = glm::perspective(glm::radians(45.0f),
+        (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
+        0.1f, 20.0f);
+    projectionLoc = glGetUniformLocation(shader.shaderProgram, "projection");
+    // send projection matrix to shader
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+    //set the light direction (direction towards the light)
+    lightDir = glm::vec3(0.0f, 1.0f, 1.0f);
+    //lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+    lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
+    // send light dir to shader
+    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
+
+    //set light color
+    lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
+    lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
+    // send light color to shader
+    glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+}
+
 /* callback functions */
 
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
     fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
     glfwGetFramebufferSize(window, &retina_width, &retina_height);
 
-    myBasicShader.useShaderProgram();
+    basicShader.useShaderProgram();
 
     projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
-    projectionLoc = glGetUniformLocation(myBasicShader.shaderProgram, "projection");
+    projectionLoc = glGetUniformLocation(basicShader.shaderProgram, "projection");
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
     glViewport(0, 0, retina_width, retina_height);
@@ -364,35 +406,8 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
 }
 
 
-GLenum glCheckError_(const char* file, int line)
-{
-    GLenum errorCode;
-    while ((errorCode = glGetError()) != GL_NO_ERROR) {
-        std::string error;
-        switch (errorCode) {
-        case GL_INVALID_ENUM:
-            error = "INVALID_ENUM";
-            break;
-        case GL_INVALID_VALUE:
-            error = "INVALID_VALUE";
-            break;
-        case GL_INVALID_OPERATION:
-            error = "INVALID_OPERATION";
-            break;
-        case GL_STACK_OVERFLOW:
-            error = "STACK_OVERFLOW";
-            break;
-        case GL_STACK_UNDERFLOW:
-            error = "STACK_UNDERFLOW";
-            break;
-        case GL_OUT_OF_MEMORY:
-            error = "OUT_OF_MEMORY";
-            break;
-        case GL_INVALID_FRAMEBUFFER_OPERATION:
-            error = "INVALID_FRAMEBUFFER_OPERATION";
-            break;
-        }
-        std::cout << error << " | " << file << " (" << line << ")" << std::endl;
-    }
-    return errorCode;
+void cleanup() {
+    myWindow.Delete();
+    //cleanup code for your own data
 }
+
