@@ -58,6 +58,9 @@ gps::Model3D teapot;
 // shaders
 gps::Shader basicShader;
 
+// animation control
+bool playAnimation = false;
+
 // check errors
 GLenum glCheckError_(const char* file, int line);
 #define glCheckError() glCheckError_(__FILE__, __LINE__)
@@ -82,6 +85,10 @@ void initUniforms(gps::Shader shader);
 void processMovement();
 void processObjectMovement();
 void processCameraMovement();
+
+/* process animation movement */
+void controlAnimation();
+void processAnimation();
 
 /* functions for updating the transformation matrices after the camera or the object has moved*/
 void updateUniforms();
@@ -134,30 +141,48 @@ int main(int argc, const char * argv[]) {
 
 
 void processMovement() {
+    controlAnimation();
+    processAnimation();
     processCameraMovement();
     processObjectMovement();
 }
 
 void processCameraMovement() {
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT]) {
+        // combination of Shift + key is for controlling the animations
+        return;
+    }
     if (pressedKeys[GLFW_KEY_W]) {
         myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
     }
-
     if (pressedKeys[GLFW_KEY_S]) {
         myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
     }
-
     if (pressedKeys[GLFW_KEY_A]) {
         myCamera.move(gps::MOVE_LEFT, cameraSpeed);
     }
-
     if (pressedKeys[GLFW_KEY_D]) {
         myCamera.move(gps::MOVE_RIGHT, cameraSpeed);
     }
-
     if (pressedKeys[GLFW_KEY_I]) {
-        // invisible
-        //todo
+        // todo: invisible
+    }
+}
+
+void controlAnimation() {
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_A]) {
+        // Shift + A => start animation
+        playAnimation = true;
+    }
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+        // Shift + S => stop animation
+        playAnimation = false;
+    }
+}
+
+void processAnimation() {
+    if (playAnimation) {
+        myCamera.goRound(10.0f);
     }
 }
 
@@ -165,7 +190,6 @@ void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
     }
-
     if (pressedKeys[GLFW_KEY_E]) {
         angle += 1.0f;
     }
@@ -174,16 +198,12 @@ void processObjectMovement() {
 void updateTransformationMatrices() {
     //update view matrix
     view = myCamera.getViewMatrix();
-
     // compute normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
-
     // update model matrix for teapot
     model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
-
     // get view matrix of camera
     view = myCamera.getViewMatrix();
-
     // update normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
@@ -191,19 +211,14 @@ void updateTransformationMatrices() {
 void updateUniforms() {
     //send model matrix data to shader
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-
     //send normal matrix data to shader
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
-
     // send projection matrix data to shader
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
     // send view matrix to shader
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
     // send light dir to shader
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
-
     // send light color to shader
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
 }
@@ -212,22 +227,16 @@ void updateUniforms() {
 void renderTeapot(gps::Shader shader) {
     // select active shader program
     shader.useShaderProgram();
-
     updateTransformationMatrices();
     updateUniforms();
-
     // draw teapot
     teapot.Draw(shader);
 }
 
 void renderScene() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     //render the scene
-
-    // render the teapot
     renderTeapot(basicShader);
-
 }
 
 
@@ -340,13 +349,10 @@ void initUniforms(gps::Shader shader) {
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
     fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
     glfwGetFramebufferSize(window, &retina_width, &retina_height);
-
     basicShader.useShaderProgram();
-
     projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     projectionLoc = glGetUniformLocation(basicShader.shaderProgram, "projection");
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
     glViewport(0, 0, retina_width, retina_height);
 }
 
@@ -354,7 +360,6 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GL_TRUE);
     }
-
     if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS) {
             pressedKeys[key] = true;
@@ -363,8 +368,6 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
             pressedKeys[key] = false;
         }
     }
-
-    // handle keyboard input from user: todo
 }
 
 void mousButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -380,16 +383,13 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
         lastY = ypos;
         firstMouseMovement = false;
     }
-
     float xoffset = xpos - lastX;
     float yoffset = lastY - ypos; // in open-gl, the direction of the y axis is reversed
-
     lastX = xpos;
     lastY = ypos;
 
     xoffset *= mouseSensitivity;
     yoffset *= mouseSensitivity;
-
     yaw += xoffset;
     pitch += yoffset;
 
@@ -404,7 +404,6 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     // compute normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
-
 
 void cleanup() {
     myWindow.Delete();
