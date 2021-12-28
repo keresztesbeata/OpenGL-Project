@@ -47,7 +47,10 @@ gps::Camera myCamera(
     glm::vec3(0.0f, 0.0f, -10.0f),
     glm::vec3(0.0f, 1.0f, 0.0f));
 
+/* uniform camera movement taking into consideration the frequency of the rendered frames */
 GLfloat cameraSpeed = 0.1f;
+float deltaTime = 0.0f;	// Time between current frame and last frame
+float lastFrame = 0.0f; // Time of last frame
 
 GLboolean pressedKeys[1024];
 GLfloat angle = 0.0f;
@@ -152,6 +155,7 @@ void processCameraMovement() {
         // combination of Shift + key is for controlling the animations
         return;
     }
+    cameraSpeed = 2.5f * deltaTime;
     if (pressedKeys[GLFW_KEY_W]) {
         myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
     }
@@ -182,7 +186,7 @@ void controlAnimation() {
 
 void processAnimation() {
     if (playAnimation) {
-        myCamera.goRound(10.0f);
+        myCamera.circle(10.0f);
     }
 }
 
@@ -197,7 +201,12 @@ void processObjectMovement() {
 
 void updateTransformationMatrices() {
     //update view matrix
-    view = myCamera.getViewMatrix();
+    if (playAnimation) {
+        view = myCamera.getAnimationViewMatrix();
+    }
+    else {
+        view = myCamera.getViewMatrix();
+    }
     // compute normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
     // update model matrix for teapot
@@ -234,6 +243,11 @@ void renderTeapot(gps::Shader shader) {
 }
 
 void renderScene() {
+    /* update time variables after rendering the each frame, to create a uniform camera movement */
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //render the scene
     renderTeapot(basicShader);
