@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cmath>
 
-enum ANIMATION_EFFECT { BOUNCE, CIRCLE, LOOK_AROUND };
+enum ANIMATION_EFFECT { BOUNCE, SPIN };
 
 #pragma once
 class Animation
@@ -24,8 +24,7 @@ public:
 
 	// control animation
 	void startBounceAnimation(float elasticity);
-	void startCircleAnimation(glm::vec3 center, float radius);
-	void startLookAroundAnimation(glm::vec3 center, float radius);
+	void startSpinAnimation(glm::vec3 axis, float dampingFactor);
 	void stopAnimation();
 	void playAnimation();
 
@@ -36,31 +35,28 @@ private:
 	ANIMATION_EFFECT animationEffect;
 
 	// general animation properties
-	float animationSpeed = 1.0;
+	float animationSpeed = DEFAULT_ANIMATION_SPEED;
 	bool animationPlaying = false;
 	float animationStartTime;
 
 	// specific animation properties
-	// for bounce effect
-	float elasticity = 1.0;
-	glm::vec3 center = glm::vec3(0.0);
-	// for radius
-	float radius = 1.0;
+	glm::vec3 axis = glm::vec3(0, 1, 0); // y axis
+	float dampingFactor = 0.0;
 
 	// bounce effect
-	void bounce(float elasticity, float speed);
-	// circle around an object
-	void circle(glm::vec3 center, float radius, float speed);
-	// look around
-	void lookAround(glm::vec3 center, float radius, float speed);
+	void bounce(float dampingFactor, float speed);
+	// spin object around an axis
+	void spin(glm::vec3 axis, float dampingFactor, float speed);
 	// configure the basic animation params
 	void configureAnimation(ANIMATION_EFFECT newAnimationEffect);
 
 	// constants
 	const float UNIT_STEP = 0.1; 
-	const float MIN_BOUNCE = 0.001;
-	const float MIN_DISPLACEMENT = 0.1;
-	const float BOUNCE_HEIGHT = 50.0;
+	
+	const float MIN_BOUNCE = 0.0001;
+	const float MAX_DAMPING = 0.001;
+
+	const float BOUNCE_HEIGHT = 100.0;
 	const float DEFAULT_ANIMATION_SPEED = 10.0;
 };
 

@@ -30,7 +30,6 @@ glm::mat3 normalMatrix;
 
 // Animations
 Animation objectAnimation;
-Animation cameraAnimation;
 
 // initial position of objects and camera
 glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
@@ -102,11 +101,11 @@ void processCameraMovement();
 /* process objectAnimation movement */
 void processAnimations();
 void processObjectAnimation();
-void processCameraAnimation();
 
 /* functions for updating the transformation matrices after the camera or the object has moved*/
 void updateUniforms();
 void updateTransformationMatrices();
+void updateModelAfterObjectRotation(float angle);
 
 /* render scene of objects */
 void renderScene();
@@ -186,69 +185,50 @@ void processCameraMovement() {
 void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
+        updateModelAfterObjectRotation(angle);
     }
     if (pressedKeys[GLFW_KEY_E]) {
         angle += 1.0f;
+        updateModelAfterObjectRotation(angle);
     }
+}
+
+void updateModelAfterObjectRotation(float angle) {
+    model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
 }
 
 void processAnimations() {
     processObjectAnimation();
-    processCameraAnimation();
 }
 
 void processObjectAnimation() {
     // use left shift for object
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
-        float elasticity = 0.2;
-        float speed = 3.0;
+        float elasticity = 0.5;
+        float speed = 5.0;
         objectAnimation.setAnimationSpeed(speed);
         objectAnimation.setTransformationMatrix(model);
         objectAnimation.startBounceAnimation(elasticity);
     }
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_C]) {
-        float radius = 10.0;
-        float speed = 20.0;
-        glm::vec3 center = myCamera.getCameraPosition();
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+        float speed = 5.0;
+        glm::vec3 axis = glm::vec3(0,1,0); // y axis
+        float dampingFactor = 0.5;
         objectAnimation.setAnimationSpeed(speed);
         objectAnimation.setTransformationMatrix(model);
-        objectAnimation.startCircleAnimation(center, radius);
+        objectAnimation.startSpinAnimation(axis, dampingFactor);
     }
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
-        // left Shift + S => stop object animation
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
+        // stop object animation
         objectAnimation.stopAnimation();
     }
     objectAnimation.playAnimation();
 }
 
-void processCameraAnimation() {
-    // use right shift for camera
-    
-    if (pressedKeys[GLFW_KEY_RIGHT_SHIFT] && pressedKeys[GLFW_KEY_L]) {
-        float radius = 10.0;
-        glm::vec3 center = glm::mat3(model) * objectInitialPosition;
-        cameraAnimation.setAnimationSpeed(cameraSpeed);
-        cameraAnimation.setInitialPosition(myCamera.getCameraPosition());
-        cameraAnimation.startLookAroundAnimation(center, radius);
-    }
-    if (pressedKeys[GLFW_KEY_RIGHT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
-        // right Shift + S => stop camera animation
-        cameraAnimation.stopAnimation();
-    }
-    cameraAnimation.playAnimation();
-}
-
 void updateTransformationMatrices() {
     // update model matrix
     if (objectAnimation.isAnimationPlaying()) {
-       model = objectAnimation.getTransformationMatrix();
-    }
-    else {
-        model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
-    }
-    if (cameraAnimation.isAnimationPlaying()) {
-        glm::vec3 newCameraPosition = cameraAnimation.getCurrentPosition();
-        myCamera.setCameraPosition(newCameraPosition);
+        model = objectAnimation.getTransformationMatrix();
     }
     //update view matrix
     view = myCamera.getViewMatrix();
@@ -400,8 +380,6 @@ void initUniforms(gps::Shader shader) {
 void initAnimations() {
     objectAnimation.setInitialPosition(objectInitialPosition);
     objectAnimation.setTransformationMatrix(model);
-
-    cameraAnimation.setInitialPosition(cameraInitialPosition);
 }
 
 /* callback functions */
