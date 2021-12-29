@@ -69,9 +69,6 @@ gps::Model3D teapot;
 // shaders
 gps::Shader basicShader;
 
-// objectAnimation control
-bool playobjectAnimation = false;
-
 // check errors
 GLenum glCheckError_(const char* file, int line);
 #define glCheckError() glCheckError_(__FILE__, __LINE__)
