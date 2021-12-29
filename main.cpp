@@ -12,6 +12,7 @@
 #include "Camera.hpp"
 #include "Model3D.hpp"
 #include "SkyBox.hpp"
+#include "Animation.hpp"
 
 #include <iostream>
 
@@ -26,6 +27,14 @@ glm::mat4 model;
 glm::mat4 view;
 glm::mat4 projection;
 glm::mat3 normalMatrix;
+
+// Animations
+Animation objectAnimation;
+Animation cameraAnimation;
+
+// initial position of objects and camera
+glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 0.0f, 3.0f);
 
 // light parameters
 glm::vec3 lightDir;
@@ -43,8 +52,8 @@ GLint lightColorLoc;
 
 // camera
 gps::Camera myCamera(
-    glm::vec3(0.0f, 0.0f, 3.0f),
-    glm::vec3(0.0f, 0.0f, -10.0f),
+    cameraInitialPosition,
+    objectInitialPosition,
     glm::vec3(0.0f, 1.0f, 0.0f));
 
 /* uniform camera movement taking into consideration the frequency of the rendered frames */
@@ -61,8 +70,8 @@ gps::Model3D teapot;
 // shaders
 gps::Shader basicShader;
 
-// animation control
-bool playAnimation = false;
+// objectAnimation control
+bool playobjectAnimation = false;
 
 // check errors
 GLenum glCheckError_(const char* file, int line);
@@ -83,15 +92,17 @@ void initOpenGLState();
 void initModels();
 void initShaders();
 void initUniforms(gps::Shader shader);
+void initAnimations();
 
 /* functions for processing movement actions */
 void processMovement();
 void processObjectMovement();
 void processCameraMovement();
 
-/* process animation movement */
-void controlAnimation();
-void processAnimation();
+/* process objectAnimation movement */
+void processAnimations();
+void processObjectAnimation();
+void processCameraAnimation();
 
 /* functions for updating the transformation matrices after the camera or the object has moved*/
 void updateUniforms();
@@ -123,6 +134,7 @@ int main(int argc, const char * argv[]) {
 	initModels();
 	initShaders();
 	initUniforms(basicShader);
+    initAnimations();
     setWindowCallbacks();
 
 	glCheckError();
@@ -142,17 +154,15 @@ int main(int argc, const char * argv[]) {
     return EXIT_SUCCESS;
 }
 
-
 void processMovement() {
-    controlAnimation();
-    processAnimation();
     processCameraMovement();
     processObjectMovement();
+    processAnimations();
 }
 
 void processCameraMovement() {
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT]) {
-        // combination of Shift + key is for controlling the animations
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] || pressedKeys[GLFW_KEY_RIGHT_SHIFT]) {
+        // combination of Shift + key is for controlling the objectAnimations
         return;
     }
     cameraSpeed = 2.5f * deltaTime;
@@ -173,23 +183,6 @@ void processCameraMovement() {
     }
 }
 
-void controlAnimation() {
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_A]) {
-        // Shift + A => start animation
-        playAnimation = true;
-    }
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
-        // Shift + S => stop animation
-        playAnimation = false;
-    }
-}
-
-void processAnimation() {
-    if (playAnimation) {
-        myCamera.circle(10.0f);
-    }
-}
-
 void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
@@ -199,21 +192,67 @@ void processObjectMovement() {
     }
 }
 
+void processAnimations() {
+    processObjectAnimation();
+    processCameraAnimation();
+}
+
+void processObjectAnimation() {
+    // use left shift for object
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
+        float elasticity = 0.2;
+        float speed = 3.0;
+        objectAnimation.setAnimationSpeed(speed);
+        objectAnimation.setTransformationMatrix(model);
+        objectAnimation.startBounceAnimation(elasticity);
+    }
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_C]) {
+        float radius = 10.0;
+        float speed = 20.0;
+        glm::vec3 center = myCamera.getCameraPosition();
+        objectAnimation.setAnimationSpeed(speed);
+        objectAnimation.setTransformationMatrix(model);
+        objectAnimation.startCircleAnimation(center, radius);
+    }
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+        // left Shift + S => stop object animation
+        objectAnimation.stopAnimation();
+    }
+    objectAnimation.playAnimation();
+}
+
+void processCameraAnimation() {
+    // use right shift for camera
+    
+    if (pressedKeys[GLFW_KEY_RIGHT_SHIFT] && pressedKeys[GLFW_KEY_L]) {
+        float radius = 10.0;
+        glm::vec3 center = glm::mat3(model) * objectInitialPosition;
+        cameraAnimation.setAnimationSpeed(cameraSpeed);
+        cameraAnimation.setInitialPosition(myCamera.getCameraPosition());
+        cameraAnimation.startLookAroundAnimation(center, radius);
+    }
+    if (pressedKeys[GLFW_KEY_RIGHT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+        // right Shift + S => stop camera animation
+        cameraAnimation.stopAnimation();
+    }
+    cameraAnimation.playAnimation();
+}
+
 void updateTransformationMatrices() {
-    //update view matrix
-    if (playAnimation) {
-        view = myCamera.getAnimationViewMatrix();
+    // update model matrix
+    if (objectAnimation.isAnimationPlaying()) {
+       model = objectAnimation.getTransformationMatrix();
     }
     else {
-        view = myCamera.getViewMatrix();
+        model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
     }
-    // compute normal matrix for teapot
-    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
-    // update model matrix for teapot
-    model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
-    // get view matrix of camera
+    if (cameraAnimation.isAnimationPlaying()) {
+        glm::vec3 newCameraPosition = cameraAnimation.getCurrentPosition();
+        myCamera.setCameraPosition(newCameraPosition);
+    }
+    //update view matrix
     view = myCamera.getViewMatrix();
-    // update normal matrix for teapot
+    // compute normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
 
@@ -356,6 +395,13 @@ void initUniforms(gps::Shader shader) {
     lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
     // send light color to shader
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+}
+
+void initAnimations() {
+    objectAnimation.setInitialPosition(objectInitialPosition);
+    objectAnimation.setTransformationMatrix(model);
+
+    cameraAnimation.setInitialPosition(cameraInitialPosition);
 }
 
 /* callback functions */

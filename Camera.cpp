@@ -16,6 +16,22 @@ namespace gps {
     glm::mat4 Camera::getViewMatrix() {
         return glm::lookAt(cameraPosition, cameraPosition + cameraFrontDirection, cameraUpDirection);
     }
+    // get camera position
+    glm::vec3 Camera::getCameraPosition() {
+        return this->cameraPosition;
+    }
+    // get the camera target
+    glm::vec3 Camera::getCameraTarget() {
+        return this->cameraTarget;
+    }
+    // set the camera position
+    void Camera::setCameraPosition(glm::vec3 newCameraPosition) {
+        this->cameraPosition = newCameraPosition;
+    }
+    // set the camera target
+    void Camera::setCameraTarget(glm::vec3 newCameraTarget) {
+        this->cameraTarget = newCameraTarget;
+    }
 
     //update the camera internal parameters following a camera move event
     void Camera::move(MOVE_DIRECTION direction, float speed) {
