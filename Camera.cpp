@@ -14,7 +14,7 @@ namespace gps {
 
     //return the view matrix, using the glm::lookAt() function
     glm::mat4 Camera::getViewMatrix() {
-        return glm::lookAt(cameraPosition, cameraTarget, cameraUpDirection);
+        return glm::lookAt(cameraPosition, cameraPosition + cameraFrontDirection, cameraUpDirection);
     }
     // get camera position
     glm::vec3 Camera::getCameraPosition() {
@@ -31,6 +31,7 @@ namespace gps {
     // set the camera target
     void Camera::setCameraTarget(glm::vec3 newCameraTarget) {
         this->cameraTarget = newCameraTarget;
+        this->cameraFrontDirection = glm::normalize(cameraPosition - cameraTarget);
     }
     // set the camera movement's speed
     void Camera::setCameraSpeed(float speed) {
@@ -49,23 +50,21 @@ namespace gps {
             break;
         }
         case MOVE_FORWARD: {
-            this->cameraPosition -= this->cameraFrontDirection * cameraSpeed;
+            this->cameraPosition += this->cameraFrontDirection * cameraSpeed;
             break;
         }
         case MOVE_BACKWARD: {
-            this->cameraPosition += this->cameraFrontDirection * cameraSpeed;
+            this->cameraPosition -= this->cameraFrontDirection * cameraSpeed;
             break;
         }
         case MOVE_UP: {
             this->cameraPosition += this->cameraUpDirection * cameraSpeed;
-            this->cameraFrontDirection = glm::normalize(cameraPosition - cameraTarget);
-            this->cameraRightDirection = glm::normalize(glm::cross(this->cameraUpDirection, this->cameraFrontDirection));
+            this->cameraFrontDirection = glm::normalize(cameraTarget - cameraPosition);
             break;
         }
         case MOVE_DOWN: {
             this->cameraPosition -= this->cameraUpDirection * cameraSpeed;
-            this->cameraFrontDirection = glm::normalize(cameraPosition - cameraTarget);
-            this->cameraRightDirection = glm::normalize(glm::cross(this->cameraUpDirection, this->cameraFrontDirection)); 
+            this->cameraFrontDirection = glm::normalize(cameraTarget - cameraPosition);
             break;
         }
         default: break;
@@ -85,7 +84,11 @@ namespace gps {
 
     // roll camera with a given angle
     void Camera::roll(float rollAngle) {
-        this->cameraRightDirection = (this->cameraRightDirection * cos(glm::radians(rollAngle))) + (this->cameraUpDirection * sin(glm::radians(rollAngle))) * cameraSpeed;
+        glm::vec3 direction;
+        direction.x = cos(glm::radians(rollAngle));
+        direction.y = sin(glm::radians(rollAngle));
+        direction.z = cameraRightDirection.z;
+        this->cameraRightDirection = direction;
         this->cameraUpDirection = glm::normalize(glm::cross(cameraFrontDirection, this->cameraRightDirection));
     }
 }

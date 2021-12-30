@@ -31,7 +31,7 @@ glm::mat4 projection;
 glm::mat3 normalMatrix;
 
 // Animations
-Animation * objectAnimation;
+Animation* objectAnimation;
 
 // initial position of objects and camera
 glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
@@ -58,7 +58,7 @@ gps::Camera myCamera(
     glm::vec3(0.0f, 1.0f, 0.0f));
 
 float rollAngle = 0.0;
-/* uniform camera movement taking into consideration the frequency of the rendered frames */
+// uniform camera movement taking into consideration the frequency of the rendered frames
 GLfloat cameraSpeed = 0.1f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
@@ -72,21 +72,20 @@ gps::Model3D ground;
 
 // shaders
 gps::Shader basicShader;
-gps::Shader shadowShader;
 
 // check errors
 GLenum glCheckError_(const char* file, int line);
 #define glCheckError() glCheckError_(__FILE__, __LINE__)
 
-/* attributes for updating the mouse coordinates within the screen frame */
-float lastX = myWindowWidth/2, lastY = myWindowWidth/2;
+// attributes for updating the mouse coordinates within the screen frame
+float lastX = myWindowWidth / 2, lastY = myWindowWidth / 2;
 float pitch = 0.0f, yaw = -90.0f;
 float angleX = 0.0f, angleY = 0.0f;
 float mouseSensitivity = 0.1f;
 bool firstMouseMovement = true;
 bool allowMouseMovements = false;
 
-/* initialize window, matrices and shaders, and add callbacks */
+// initialize window, matrices and shaders, and add callbacks 
 void initOpenGLWindow();
 void setWindowCallbacks();
 void initOpenGLState();
@@ -95,62 +94,63 @@ void initShaders();
 void initUniforms(gps::Shader shader);
 void initAnimations();
 
-/* functions for processing movement actions */
+// functions for processing movement actions
 void processMovement();
 void processObjectMovement();
 void processCameraMovement();
 
-/* process objectAnimation movement */
+// process objectAnimation movement
 void processAnimations();
 
-/* functions for updating the transformation matrices after the camera or the object has moved*/
+// functions for updating the transformation matrices after the camera or the object has moved
 void updateUniforms();
 void updateTransformationMatrices();
 void updateModelForDrawingGround();
 void updateModelAfterObjectRotation(float angle);
 
-/* render scene of objects */
+// render scene of objects
 void renderScene();
 void drawObjects(gps::Shader shader);
 
-/* callback functions for handling user interactions */
+// callback functions for handling user interactions
 void windowResizeCallback(GLFWwindow* window, int width, int height);
 void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
 void mouseCallback(GLFWwindow* window, double xpos, double ypos);
 void mousButtonCallback(GLFWwindow* window, int button, int action, int mods);
 
-/* clean-up*/
+// clean-up
 void cleanup();
 
-int main(int argc, const char * argv[]) {
+int main(int argc, const char* argv[]) {
 
     try {
         initOpenGLWindow();
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
     initOpenGLState();
-	initModels();
-	initShaders();
-	initUniforms(basicShader);
+    initModels();
+    initShaders();
+    initUniforms(basicShader);
     initAnimations();
     setWindowCallbacks();
 
-	glCheckError();
-	// application loop
-	while (!glfwWindowShouldClose(myWindow.getWindow())) {
+    glCheckError();
+    // application loop
+    while (!glfwWindowShouldClose(myWindow.getWindow())) {
         processMovement();
-	    renderScene();
+        renderScene();
 
-		glfwPollEvents();
-		glfwSwapBuffers(myWindow.getWindow());
+        glfwPollEvents();
+        glfwSwapBuffers(myWindow.getWindow());
 
-		glCheckError();
-	}
+        glCheckError();
+    }
 
-	cleanup();
+    cleanup();
 
     return EXIT_SUCCESS;
 }
@@ -187,7 +187,7 @@ void processCameraMovement() {
         myCamera.move(gps::MOVE_DOWN);
     }
     if (pressedKeys[GLFW_KEY_R]) {
-        rollAngle += 10.0;
+        rollAngle += 1.0;
         myCamera.roll(rollAngle);
     }
 }
@@ -195,16 +195,10 @@ void processCameraMovement() {
 void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
-        updateModelAfterObjectRotation(angle);
     }
     if (pressedKeys[GLFW_KEY_E]) {
         angle += 1.0f;
-        updateModelAfterObjectRotation(angle);
     }
-}
-
-void updateModelAfterObjectRotation(float angle) {
-    model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
 }
 
 void processAnimations() {
@@ -221,7 +215,7 @@ void processAnimations() {
         if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
             float animationSpeed = 5.0;
             float elasticity = 0.5;
-            BounceAnimation * bounceAnimation = new BounceAnimation(*objectAnimation, elasticity);
+            BounceAnimation* bounceAnimation = new BounceAnimation(*objectAnimation, elasticity);
             objectAnimation = bounceAnimation;
             // start the object animation
             objectAnimation->setAnimationSpeed(animationSpeed);
@@ -232,7 +226,7 @@ void processAnimations() {
             float animationSpeed = 5.0;
             glm::vec3 axis = glm::vec3(0, 1, 0); // y axis
             float dampingFactor = 0.5;
-            SpinAnimation * spinAnimation = new SpinAnimation(*objectAnimation, axis, dampingFactor);
+            SpinAnimation* spinAnimation = new SpinAnimation(*objectAnimation, axis, dampingFactor);
             objectAnimation = spinAnimation;
             // start the object animation
             objectAnimation->setAnimationSpeed(animationSpeed);
@@ -247,6 +241,9 @@ void updateTransformationMatrices() {
     if (objectAnimation->isAnimationPlaying()) {
         model = objectAnimation->getTransformationMatrix();
     }
+    else {
+        model = glm::rotate(model, glm::radians(angle), glm::vec3(0, 1, 0));
+    }
     //update view matrix
     view = myCamera.getViewMatrix();
     // compute normal matrix for teapot
@@ -254,7 +251,7 @@ void updateTransformationMatrices() {
 }
 
 void updateModelForDrawingGround() {
-    model = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, -1.0f, 0.0f));
+    model = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, -0.5f, 0.0f));
     model = glm::scale(model, glm::vec3(0.5f));
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
@@ -289,85 +286,26 @@ void drawObjects(gps::Shader shader) {
 }
 
 void renderScene() {
-    /* update time variables after rendering the each frame, to create a uniform camera movement */
+    // update time variables after rendering the each frame, to create a uniform camera movement 
     float currentFrame = glfwGetTime();
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //render the scene
-    drawObjects(shadowShader);
-
+    drawObjects(basicShader);
 }
 
-
-GLenum glCheckError_(const char* file, int line)
-{
-    GLenum errorCode;
-    while ((errorCode = glGetError()) != GL_NO_ERROR) {
-        std::string error;
-        switch (errorCode) {
-        case GL_INVALID_ENUM:
-            error = "INVALID_ENUM";
-            break;
-        case GL_INVALID_VALUE:
-            error = "INVALID_VALUE";
-            break;
-        case GL_INVALID_OPERATION:
-            error = "INVALID_OPERATION";
-            break;
-        case GL_STACK_OVERFLOW:
-            error = "STACK_OVERFLOW";
-            break;
-        case GL_STACK_UNDERFLOW:
-            error = "STACK_UNDERFLOW";
-            break;
-        case GL_OUT_OF_MEMORY:
-            error = "OUT_OF_MEMORY";
-            break;
-        case GL_INVALID_FRAMEBUFFER_OPERATION:
-            error = "INVALID_FRAMEBUFFER_OPERATION";
-            break;
-        }
-        std::cout << error << " | " << file << " (" << line << ")" << std::endl;
-    }
-    return errorCode;
-}
-
-void initOpenGLWindow() {
-    myWindow.Create(myWindowWidth, myWindowHeight, "OpenGL Project");
-}
-
-void setWindowCallbacks() {
-    glfwSetWindowSizeCallback(myWindow.getWindow(), windowResizeCallback);
-    glfwSetKeyCallback(myWindow.getWindow(), keyboardCallback);
-    glfwSetCursorPosCallback(myWindow.getWindow(), mouseCallback);
-    glfwSetMouseButtonCallback(myWindow.getWindow(), mousButtonCallback);
-}
-
-void initOpenGLState() {
-    glClearColor(0.7f, 0.7f, 0.7f, 1.0f);
-    glViewport(0, 0, myWindow.getWindowDimensions().width, myWindow.getWindowDimensions().height);
-    glEnable(GL_FRAMEBUFFER_SRGB);
-    glEnable(GL_DEPTH_TEST); // enable depth-testing
-    glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
-    glEnable(GL_CULL_FACE); // cull face
-    glCullFace(GL_BACK); // cull back face
-    glFrontFace(GL_CCW); // GL_CCW for counter clock-wise
-}
 
 void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
-    ground.LoadModel("models/ground/ground.obj"); 
+    ground.LoadModel("models/ground/ground.obj");
 }
 
 void initShaders() {
     basicShader.loadShader(
         "shaders/basic.vert",
         "shaders/basic.frag");
-    shadowShader.loadShader(
-        "shaders/shaderShadows.vert",
-        "shaders/shaderShadows.frag");
 }
 
 void initUniforms(gps::Shader shader) {
@@ -415,7 +353,7 @@ void initAnimations() {
     objectAnimation->setTransformationMatrix(model);
 }
 
-/* callback functions */
+// callback functions
 
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
     fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
@@ -471,9 +409,6 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
         pitch = -89.0f;
 
     myCamera.rotate(pitch, yaw);
-    view = myCamera.getViewMatrix();
-    // compute normal matrix for teapot
-    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
 
 void cleanup() {
@@ -482,3 +417,57 @@ void cleanup() {
     glfwTerminate();
 }
 
+GLenum glCheckError_(const char* file, int line)
+{
+    GLenum errorCode;
+    while ((errorCode = glGetError()) != GL_NO_ERROR) {
+        std::string error;
+        switch (errorCode) {
+        case GL_INVALID_ENUM:
+            error = "INVALID_ENUM";
+            break;
+        case GL_INVALID_VALUE:
+            error = "INVALID_VALUE";
+            break;
+        case GL_INVALID_OPERATION:
+            error = "INVALID_OPERATION";
+            break;
+        case GL_STACK_OVERFLOW:
+            error = "STACK_OVERFLOW";
+            break;
+        case GL_STACK_UNDERFLOW:
+            error = "STACK_UNDERFLOW";
+            break;
+        case GL_OUT_OF_MEMORY:
+            error = "OUT_OF_MEMORY";
+            break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION:
+            error = "INVALID_FRAMEBUFFER_OPERATION";
+            break;
+        }
+        std::cout << error << " | " << file << " (" << line << ")" << std::endl;
+    }
+    return errorCode;
+}
+
+void initOpenGLWindow() {
+    myWindow.Create(myWindowWidth, myWindowHeight, "OpenGL Project");
+}
+
+void setWindowCallbacks() {
+    glfwSetWindowSizeCallback(myWindow.getWindow(), windowResizeCallback);
+    glfwSetKeyCallback(myWindow.getWindow(), keyboardCallback);
+    glfwSetCursorPosCallback(myWindow.getWindow(), mouseCallback);
+    glfwSetMouseButtonCallback(myWindow.getWindow(), mousButtonCallback);
+}
+
+void initOpenGLState() {
+    glClearColor(0.7f, 0.7f, 0.7f, 1.0f);
+    glViewport(0, 0, myWindow.getWindowDimensions().width, myWindow.getWindowDimensions().height);
+    glEnable(GL_FRAMEBUFFER_SRGB);
+    glEnable(GL_DEPTH_TEST); // enable depth-testing
+    glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
+    glEnable(GL_CULL_FACE); // cull face
+    glCullFace(GL_BACK); // cull back face
+    glFrontFace(GL_CCW); // GL_CCW for counter clock-wise
+}

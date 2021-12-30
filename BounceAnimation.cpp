@@ -11,8 +11,6 @@ BounceAnimation::BounceAnimation(Animation basicAnimation, float elasticity) {
 	this->currentPosition = basicAnimation.getCurrentPosition();
 	this->transformationMatrix = basicAnimation.getTransformationMatrix();
 	this->elasticity = elasticity;
-	printVector(currentPosition);
-	printMatrix(transformationMatrix);
 }
 
 void BounceAnimation::playAnimation() {

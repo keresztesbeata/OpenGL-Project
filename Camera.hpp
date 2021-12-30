@@ -18,13 +18,9 @@ namespace gps {
         Camera(glm::vec3 cameraPosition, glm::vec3 cameraTarget, glm::vec3 cameraUp);
         //return the view matrix, using the glm::lookAt() function
         glm::mat4 getViewMatrix();
-        // get the camera position
         glm::vec3 getCameraPosition();
-        // get the camera target
         glm::vec3 getCameraTarget();
-        // set the camera position
         void setCameraPosition(glm::vec3 newCameraPosition);
-        // set the camera target
         void setCameraTarget(glm::vec3 newCameraTarget);
         void setCameraSpeed(float speed);
 
@@ -44,7 +40,7 @@ namespace gps {
         glm::vec3 cameraFrontDirection;
         glm::vec3 cameraRightDirection;
         glm::vec3 cameraUpDirection;
-        float cameraSpeed;
+        float cameraSpeed = 1.0;
     };
     
 }

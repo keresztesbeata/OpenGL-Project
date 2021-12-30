@@ -12,6 +12,8 @@ Animation::Animation() {
 
 void Animation::setTransformationMatrix(glm::mat4 newTransformationMatrix) {
 	this->transformationMatrix = newTransformationMatrix;
+	this->initialPosition = glm::mat3(transformationMatrix) * this->initialPosition;
+	this->currentPosition = glm::mat3(transformationMatrix) * this->currentPosition;
 }
 
 void Animation::setInitialPosition(glm::vec3 newPosition) {
@@ -63,6 +65,7 @@ bool Animation::isBackToOriginalPosition(glm::vec3 newPosition, glm::vec3 origin
 }
 
 /* for debugging */
+
 void Animation::printMatrix(glm::mat4 matrix) {
 	std::cout << "matrix = "<<std::endl;
 	for (int i = 0; i < 4; i++) {
