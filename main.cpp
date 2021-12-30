@@ -68,9 +68,11 @@ GLfloat angle = 0.0f;
 
 // models
 gps::Model3D teapot;
+gps::Model3D ground;
 
 // shaders
 gps::Shader basicShader;
+gps::Shader shadowShader;
 
 // check errors
 GLenum glCheckError_(const char* file, int line);
@@ -104,11 +106,12 @@ void processAnimations();
 /* functions for updating the transformation matrices after the camera or the object has moved*/
 void updateUniforms();
 void updateTransformationMatrices();
+void updateModelForDrawingGround();
 void updateModelAfterObjectRotation(float angle);
 
 /* render scene of objects */
 void renderScene();
-void renderTeapot(gps::Shader shader);
+void drawObjects(gps::Shader shader);
 
 /* callback functions for handling user interactions */
 void windowResizeCallback(GLFWwindow* window, int width, int height);
@@ -250,6 +253,12 @@ void updateTransformationMatrices() {
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
 
+void updateModelForDrawingGround() {
+    model = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, -1.0f, 0.0f));
+    model = glm::scale(model, glm::vec3(0.5f));
+    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+}
+
 void updateUniforms() {
     //send model matrix data to shader
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -266,13 +275,17 @@ void updateUniforms() {
 }
 
 
-void renderTeapot(gps::Shader shader) {
+void drawObjects(gps::Shader shader) {
     // select active shader program
     shader.useShaderProgram();
     updateTransformationMatrices();
     updateUniforms();
     // draw teapot
     teapot.Draw(shader);
+
+    updateModelForDrawingGround();
+    updateUniforms();
+    ground.Draw(shader);
 }
 
 void renderScene() {
@@ -283,7 +296,8 @@ void renderScene() {
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //render the scene
-    renderTeapot(basicShader);
+    drawObjects(shadowShader);
+
 }
 
 
@@ -344,12 +358,16 @@ void initOpenGLState() {
 
 void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
+    ground.LoadModel("models/ground/ground.obj"); 
 }
 
 void initShaders() {
     basicShader.loadShader(
         "shaders/basic.vert",
         "shaders/basic.frag");
+    shadowShader.loadShader(
+        "shaders/shaderShadows.vert",
+        "shaders/shaderShadows.frag");
 }
 
 void initUniforms(gps::Shader shader) {
