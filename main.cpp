@@ -55,6 +55,7 @@ gps::Camera myCamera(
     objectInitialPosition,
     glm::vec3(0.0f, 1.0f, 0.0f));
 
+float rollAngle = 0.0;
 /* uniform camera movement taking into consideration the frequency of the rendered frames */
 GLfloat cameraSpeed = 0.1f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
@@ -75,7 +76,7 @@ GLenum glCheckError_(const char* file, int line);
 
 /* attributes for updating the mouse coordinates within the screen frame */
 float lastX = myWindowWidth/2, lastY = myWindowWidth/2;
-float pitch = 0.0f, yaw = -90.0f, rollAngle = angle;
+float pitch = 0.0f, yaw = -90.0f;
 float angleX = 0.0f, angleY = 0.0f;
 float mouseSensitivity = 0.1f;
 bool firstMouseMovement = true;
@@ -162,20 +163,28 @@ void processCameraMovement() {
         return;
     }
     cameraSpeed = 2.5f * deltaTime;
+    myCamera.setCameraSpeed(cameraSpeed);
     if (pressedKeys[GLFW_KEY_W]) {
-        myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
+        myCamera.move(gps::MOVE_FORWARD);
     }
     if (pressedKeys[GLFW_KEY_S]) {
-        myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
+        myCamera.move(gps::MOVE_BACKWARD);
     }
     if (pressedKeys[GLFW_KEY_A]) {
-        myCamera.move(gps::MOVE_LEFT, cameraSpeed);
+        myCamera.move(gps::MOVE_LEFT);
     }
     if (pressedKeys[GLFW_KEY_D]) {
-        myCamera.move(gps::MOVE_RIGHT, cameraSpeed);
+        myCamera.move(gps::MOVE_RIGHT);
     }
-    if (pressedKeys[GLFW_KEY_I]) {
-        // todo: invisible
+    if (pressedKeys[GLFW_KEY_F]) {
+        myCamera.move(gps::MOVE_UP);
+    }
+    if (pressedKeys[GLFW_KEY_C]) {
+        myCamera.move(gps::MOVE_DOWN);
+    }
+    if (pressedKeys[GLFW_KEY_R]) {
+        rollAngle += 10.0;
+        myCamera.roll(rollAngle);
     }
 }
 
@@ -442,6 +451,7 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
 
 void cleanup() {
     myWindow.Delete();
-    //cleanup code for your own data
+    //close GL context and any other GLFW resources
+    glfwTerminate();
 }
 
