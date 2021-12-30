@@ -12,6 +12,9 @@
 #include "Camera.hpp"
 #include "Model3D.hpp"
 #include "SkyBox.hpp"
+#include "Animation.hpp"
+#include "BounceAnimation.hpp"
+#include "SpinAnimation.hpp"
 
 #include <iostream>
 
@@ -26,6 +29,13 @@ glm::mat4 model;
 glm::mat4 view;
 glm::mat4 projection;
 glm::mat3 normalMatrix;
+
+// Animations
+Animation * objectAnimation;
+
+// initial position of objects and camera
+glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 0.0f, 3.0f);
 
 // light parameters
 glm::vec3 lightDir;
@@ -43,11 +53,15 @@ GLint lightColorLoc;
 
 // camera
 gps::Camera myCamera(
-    glm::vec3(0.0f, 0.0f, 3.0f),
-    glm::vec3(0.0f, 0.0f, -10.0f),
+    cameraInitialPosition,
+    objectInitialPosition,
     glm::vec3(0.0f, 1.0f, 0.0f));
 
+float rollAngle = 0.0;
+/* uniform camera movement taking into consideration the frequency of the rendered frames */
 GLfloat cameraSpeed = 0.1f;
+float deltaTime = 0.0f;	// Time between current frame and last frame
+float lastFrame = 0.0f; // Time of last frame
 
 GLboolean pressedKeys[1024];
 GLfloat angle = 0.0f;
@@ -64,7 +78,7 @@ GLenum glCheckError_(const char* file, int line);
 
 /* attributes for updating the mouse coordinates within the screen frame */
 float lastX = myWindowWidth/2, lastY = myWindowWidth/2;
-float pitch = 0.0f, yaw = -90.0f, rollAngle = angle;
+float pitch = 0.0f, yaw = -90.0f;
 float angleX = 0.0f, angleY = 0.0f;
 float mouseSensitivity = 0.1f;
 bool firstMouseMovement = true;
@@ -77,15 +91,20 @@ void initOpenGLState();
 void initModels();
 void initShaders();
 void initUniforms(gps::Shader shader);
+void initAnimations();
 
 /* functions for processing movement actions */
 void processMovement();
 void processObjectMovement();
 void processCameraMovement();
 
+/* process objectAnimation movement */
+void processAnimations();
+
 /* functions for updating the transformation matrices after the camera or the object has moved*/
 void updateUniforms();
 void updateTransformationMatrices();
+void updateModelAfterObjectRotation(float angle);
 
 /* render scene of objects */
 void renderScene();
@@ -113,6 +132,7 @@ int main(int argc, const char * argv[]) {
 	initModels();
 	initShaders();
 	initUniforms(basicShader);
+    initAnimations();
     setWindowCallbacks();
 
 	glCheckError();
@@ -132,78 +152,115 @@ int main(int argc, const char * argv[]) {
     return EXIT_SUCCESS;
 }
 
-
 void processMovement() {
     processCameraMovement();
     processObjectMovement();
+    processAnimations();
 }
 
 void processCameraMovement() {
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] || pressedKeys[GLFW_KEY_RIGHT_SHIFT]) {
+        // combination of Shift + key is for controlling the objectAnimations
+        return;
+    }
+    cameraSpeed = 2.5f * deltaTime;
+    myCamera.setCameraSpeed(cameraSpeed);
     if (pressedKeys[GLFW_KEY_W]) {
-        myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
+        myCamera.move(gps::MOVE_FORWARD);
     }
-
     if (pressedKeys[GLFW_KEY_S]) {
-        myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
+        myCamera.move(gps::MOVE_BACKWARD);
     }
-
     if (pressedKeys[GLFW_KEY_A]) {
-        myCamera.move(gps::MOVE_LEFT, cameraSpeed);
+        myCamera.move(gps::MOVE_LEFT);
     }
-
     if (pressedKeys[GLFW_KEY_D]) {
-        myCamera.move(gps::MOVE_RIGHT, cameraSpeed);
+        myCamera.move(gps::MOVE_RIGHT);
     }
-
-    if (pressedKeys[GLFW_KEY_I]) {
-        // invisible
-        //todo
+    if (pressedKeys[GLFW_KEY_F]) {
+        myCamera.move(gps::MOVE_UP);
+    }
+    if (pressedKeys[GLFW_KEY_C]) {
+        myCamera.move(gps::MOVE_DOWN);
+    }
+    if (pressedKeys[GLFW_KEY_R]) {
+        rollAngle += 10.0;
+        myCamera.roll(rollAngle);
     }
 }
 
 void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
+        updateModelAfterObjectRotation(angle);
     }
-
     if (pressedKeys[GLFW_KEY_E]) {
         angle += 1.0f;
+        updateModelAfterObjectRotation(angle);
+    }
+}
+
+void updateModelAfterObjectRotation(float angle) {
+    model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
+}
+
+void processAnimations() {
+    // use left shift for object
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
+        // stop object animation
+        objectAnimation->stopAnimation();
+    }
+    if (objectAnimation->isAnimationPlaying()) {
+        objectAnimation->playAnimation();
+    }
+    else {
+        //start a new animation
+        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
+            float animationSpeed = 5.0;
+            float elasticity = 0.5;
+            BounceAnimation * bounceAnimation = new BounceAnimation(*objectAnimation, elasticity);
+            objectAnimation = bounceAnimation;
+            // start the object animation
+            objectAnimation->setAnimationSpeed(animationSpeed);
+            objectAnimation->setTransformationMatrix(model);
+            objectAnimation->startAnimation();
+        }
+        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+            float animationSpeed = 5.0;
+            glm::vec3 axis = glm::vec3(0, 1, 0); // y axis
+            float dampingFactor = 0.5;
+            SpinAnimation * spinAnimation = new SpinAnimation(*objectAnimation, axis, dampingFactor);
+            objectAnimation = spinAnimation;
+            // start the object animation
+            objectAnimation->setAnimationSpeed(animationSpeed);
+            objectAnimation->setTransformationMatrix(model);
+            objectAnimation->startAnimation();
+        }
     }
 }
 
 void updateTransformationMatrices() {
+    // update model matrix
+    if (objectAnimation->isAnimationPlaying()) {
+        model = objectAnimation->getTransformationMatrix();
+    }
     //update view matrix
     view = myCamera.getViewMatrix();
-
     // compute normal matrix for teapot
-    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
-
-    // update model matrix for teapot
-    model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
-
-    // get view matrix of camera
-    view = myCamera.getViewMatrix();
-
-    // update normal matrix for teapot
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
 
 void updateUniforms() {
     //send model matrix data to shader
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-
     //send normal matrix data to shader
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
-
     // send projection matrix data to shader
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
     // send view matrix to shader
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-
     // send light dir to shader
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
-
     // send light color to shader
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
 }
@@ -212,22 +269,21 @@ void updateUniforms() {
 void renderTeapot(gps::Shader shader) {
     // select active shader program
     shader.useShaderProgram();
-
     updateTransformationMatrices();
     updateUniforms();
-
     // draw teapot
     teapot.Draw(shader);
 }
 
 void renderScene() {
+    /* update time variables after rendering the each frame, to create a uniform camera movement */
+    float currentFrame = glfwGetTime();
+    deltaTime = currentFrame - lastFrame;
+    lastFrame = currentFrame;
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     //render the scene
-
-    // render the teapot
     renderTeapot(basicShader);
-
 }
 
 
@@ -335,18 +391,21 @@ void initUniforms(gps::Shader shader) {
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
 }
 
+void initAnimations() {
+    objectAnimation = new Animation();
+    objectAnimation->setInitialPosition(objectInitialPosition);
+    objectAnimation->setTransformationMatrix(model);
+}
+
 /* callback functions */
 
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
     fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
     glfwGetFramebufferSize(window, &retina_width, &retina_height);
-
     basicShader.useShaderProgram();
-
     projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     projectionLoc = glGetUniformLocation(basicShader.shaderProgram, "projection");
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
     glViewport(0, 0, retina_width, retina_height);
 }
 
@@ -354,7 +413,6 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GL_TRUE);
     }
-
     if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS) {
             pressedKeys[key] = true;
@@ -363,8 +421,6 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
             pressedKeys[key] = false;
         }
     }
-
-    // handle keyboard input from user: todo
 }
 
 void mousButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -380,16 +436,13 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
         lastY = ypos;
         firstMouseMovement = false;
     }
-
     float xoffset = xpos - lastX;
     float yoffset = lastY - ypos; // in open-gl, the direction of the y axis is reversed
-
     lastX = xpos;
     lastY = ypos;
 
     xoffset *= mouseSensitivity;
     yoffset *= mouseSensitivity;
-
     yaw += xoffset;
     pitch += yoffset;
 
@@ -405,9 +458,9 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
 }
 
-
 void cleanup() {
     myWindow.Delete();
-    //cleanup code for your own data
+    //close GL context and any other GLFW resources
+    glfwTerminate();
 }
 
