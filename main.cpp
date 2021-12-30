@@ -15,6 +15,7 @@
 #include "Animation.hpp"
 #include "BounceAnimation.hpp"
 #include "SpinAnimation.hpp"
+#include "LightSource.hpp"
 
 #include <iostream>
 
@@ -36,12 +37,10 @@ Animation* objectAnimation;
 
 // initial position of objects and camera
 glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
-glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 0.0f, 3.0f);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 0.0f, 5.0f);
 
-// light parameters
-glm::vec3 lightDir;
-glm::vec3 lightColor;
-GLfloat lightAngle;
+// light source
+LightSource * lightSource;
 
 // shader uniform locations
 GLint modelLoc;
@@ -95,6 +94,7 @@ void initModels();
 void initShaders();
 void initUniforms(gps::Shader shader);
 void initAnimations();
+void initLightSources();
 
 // functions for processing movement actions
 void processMovement();
@@ -137,6 +137,7 @@ int main(int argc, const char* argv[]) {
     initOpenGLState();
     initModels();
     initShaders();
+    initLightSources();
     initUniforms(basicShader);
     initAnimations();
     setWindowCallbacks();
@@ -244,10 +245,28 @@ void processAnimations() {
 
 void processLightMovement() {
     if (pressedKeys[GLFW_KEY_J]) {
-        lightAngle -= 1.0f;
+        lightSource->move(gps::MOVE_LEFT);
     }
     if (pressedKeys[GLFW_KEY_L]) {
-        lightAngle += 1.0f;
+        lightSource->move(gps::MOVE_RIGHT);
+    }
+    if (pressedKeys[GLFW_KEY_I]) {
+        lightSource->move(gps::MOVE_UP);
+    }
+    if (pressedKeys[GLFW_KEY_K]) {
+        lightSource->move(gps::MOVE_DOWN);
+    }
+    if (pressedKeys[GLFW_KEY_U]) {
+        lightSource->move(gps::ROTATE_CLOCKWISE);
+    }
+    if (pressedKeys[GLFW_KEY_O]) {
+        lightSource->move(gps::ROTATE_COUNTER_CLOCKWISE);
+    }
+    if (pressedKeys[GLFW_KEY_H]) {
+        lightSource->move(gps::MOVE_FORWARD);
+    }
+    if (pressedKeys[GLFW_KEY_N]) {
+        lightSource->move(gps::MOVE_BACKWARD);
     }
 }
 
@@ -258,8 +277,8 @@ glm::mat4 getModelForDrawingGround() {
 }
 
 glm::mat4 getModelForDrawingLightCube() {
-    glm::mat4 lightCubeModel = lightRotation;
-    lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightDir);
+    glm::mat4 lightCubeModel = glm::mat4(1.0);// lightSource->getTransformationMatrix();
+    lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightSource->getLightDir());
     lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.05f, 0.05f, 0.05f));
     return lightCubeModel;
 }
@@ -276,8 +295,7 @@ void updateUniforms(glm::mat4 model) {
     //send normal matrix data to shader
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
     // send light dir to shader
-    lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
-    glUniform3fv(lightDirLoc, 1, glm::value_ptr(glm::inverseTranspose(glm::mat3(view * lightRotation)) * lightDir));
+    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
 }
 
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection) {
@@ -357,19 +375,13 @@ void initUniforms(gps::Shader shader) {
     // send projection matrix to shader
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-    //set the light direction (direction towards the light)
-    lightDir = glm::vec3(0.0f, 1.0f, 1.0f);
-    lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
-    lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
     // send light dir to shader
-    //glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
-    glUniform3fv(lightDirLoc, 1, glm::value_ptr(glm::inverseTranspose(glm::mat3(view * lightRotation)) * lightDir));
+    lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
+    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
 
-    //set light color
-    lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
-    lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
     // send light color to shader
-    glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+    lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
+    glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightSource->getLightColor()));
 
     // send th eprojection matrix to the light shader
     lightShader.useShaderProgram();
@@ -382,6 +394,15 @@ void initAnimations() {
     objectAnimation->setTransformationMatrix(model);
 }
 
+// must be called before initUniforms()!!!
+void initLightSources() {
+    //set the light direction (direction towards the light)
+    glm::vec3 lightDir = glm::vec3(0.0f, 1.0f, 1.0f);
+    //set light color => white light
+    glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
+
+    lightSource = new LightSource(lightDir, lightColor);
+}
 // callback functions
 
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
