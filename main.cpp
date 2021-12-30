@@ -29,6 +29,7 @@ glm::mat4 model;
 glm::mat4 view;
 glm::mat4 projection;
 glm::mat3 normalMatrix;
+glm::mat4 lightRotation;
 
 // Animations
 Animation* objectAnimation;
@@ -40,7 +41,6 @@ glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 0.0f, 3.0f);
 // light parameters
 glm::vec3 lightDir;
 glm::vec3 lightColor;
-
 GLfloat lightAngle;
 
 // shader uniform locations
@@ -69,9 +69,11 @@ GLfloat angle = 0.0f;
 // models
 gps::Model3D teapot;
 gps::Model3D ground;
+gps::Model3D lightCube;
 
 // shaders
 gps::Shader basicShader;
+gps::Shader lightShader;
 
 // check errors
 GLenum glCheckError_(const char* file, int line);
@@ -103,10 +105,10 @@ void processCameraMovement();
 void processAnimations();
 
 // functions for updating the transformation matrices after the camera or the object has moved
-void updateUniforms();
-void updateTransformationMatrices();
-void updateModelForDrawingGround();
-void updateModelAfterObjectRotation(float angle);
+void updateUniforms(glm::mat4 model);
+void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
+glm::mat4 getModelForDrawingGround();
+glm::mat4 getModelForDrawingLightCube();
 
 // render scene of objects
 void renderScene();
@@ -209,8 +211,10 @@ void processAnimations() {
     }
     if (objectAnimation->isAnimationPlaying()) {
         objectAnimation->playAnimation();
+        model = objectAnimation->getTransformationMatrix();
     }
     else {
+        model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
         //start a new animation
         if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
             float animationSpeed = 5.0;
@@ -236,53 +240,55 @@ void processAnimations() {
     }
 }
 
-void updateTransformationMatrices() {
-    // update model matrix
-    if (objectAnimation->isAnimationPlaying()) {
-        model = objectAnimation->getTransformationMatrix();
-    }
-    else {
-        model = glm::rotate(model, glm::radians(angle), glm::vec3(0, 1, 0));
-    }
-    //update view matrix
-    view = myCamera.getViewMatrix();
-    // compute normal matrix for teapot
-    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+glm::mat4 getModelForDrawingGround() {
+    glm::mat4 groundModel = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, -0.5f, 0.0f));
+    groundModel = glm::scale(groundModel, glm::vec3(0.5f));
+    return groundModel;
 }
 
-void updateModelForDrawingGround() {
-    model = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, -0.5f, 0.0f));
-    model = glm::scale(model, glm::vec3(0.5f));
-    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+glm::mat4 getModelForDrawingLightCube() {
+    glm::mat4 lightCubeModel = lightRotation;
+    lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightDir);
+    lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.05f, 0.05f, 0.05f));
+    return lightCubeModel;
 }
 
-void updateUniforms() {
+void updateUniforms(glm::mat4 model) {
     //send model matrix data to shader
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-    //send normal matrix data to shader
-    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
-    // send projection matrix data to shader
-    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+    //update view matrix
+    view = myCamera.getViewMatrix();
     // send view matrix to shader
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+    // compute normal matrix
+    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+    //send normal matrix data to shader
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
     // send light dir to shader
-    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
-    // send light color to shader
-    glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+    lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+    glUniform3fv(lightDirLoc, 1, glm::value_ptr(glm::inverseTranspose(glm::mat3(view * lightRotation)) * lightDir));
 }
 
+void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection) {
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+}
 
 void drawObjects(gps::Shader shader) {
-    // select active shader program
     shader.useShaderProgram();
-    updateTransformationMatrices();
-    updateUniforms();
     // draw teapot
+    updateUniforms(model*getModelForDrawingGround());
     teapot.Draw(shader);
-
-    updateModelForDrawingGround();
-    updateUniforms();
+    updateUniforms(getModelForDrawingGround());
     ground.Draw(shader);
+}
+
+void drawLightSource(gps::Shader shader) {
+    shader.useShaderProgram();
+    getModelForDrawingLightCube();
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(), myCamera.getViewMatrix(), projection);
+    lightCube.Draw(shader);
 }
 
 void renderScene() {
@@ -291,21 +297,28 @@ void renderScene() {
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
 
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     //render the scene
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    //draw the objects
     drawObjects(basicShader);
+    // draw the light sources
+    drawLightSource(lightShader);
 }
 
 
 void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
     ground.LoadModel("models/ground/ground.obj");
+    lightCube.LoadModel("models/cube/cube.obj");
 }
 
 void initShaders() {
     basicShader.loadShader(
         "shaders/basic.vert",
         "shaders/basic.frag");
+    lightShader.loadShader(
+        "shaders/lightShader.vert",
+        "shaders/lightShader.frag");
 }
 
 void initUniforms(gps::Shader shader) {
@@ -335,16 +348,21 @@ void initUniforms(gps::Shader shader) {
 
     //set the light direction (direction towards the light)
     lightDir = glm::vec3(0.0f, 1.0f, 1.0f);
-    //lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+    lightRotation = glm::rotate(glm::mat4(1.0f), glm::radians(lightAngle), glm::vec3(0.0f, 1.0f, 0.0f));
     lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
     // send light dir to shader
-    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
+    //glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
+    glUniform3fv(lightDirLoc, 1, glm::value_ptr(glm::inverseTranspose(glm::mat3(view * lightRotation)) * lightDir));
 
     //set light color
     lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
     lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
     // send light color to shader
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+
+    // send th eprojection matrix to the light shader
+    lightShader.useShaderProgram();
+    glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 }
 
 void initAnimations() {
