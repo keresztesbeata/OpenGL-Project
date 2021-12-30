@@ -98,6 +98,7 @@ void initAnimations();
 
 // functions for processing movement actions
 void processMovement();
+void processLightMovement();
 void processObjectMovement();
 void processCameraMovement();
 
@@ -161,6 +162,7 @@ void processMovement() {
     processCameraMovement();
     processObjectMovement();
     processAnimations();
+    processLightMovement();
 }
 
 void processCameraMovement() {
@@ -237,6 +239,15 @@ void processAnimations() {
             objectAnimation->setTransformationMatrix(model);
             objectAnimation->startAnimation();
         }
+    }
+}
+
+void processLightMovement() {
+    if (pressedKeys[GLFW_KEY_J]) {
+        lightAngle -= 1.0f;
+    }
+    if (pressedKeys[GLFW_KEY_L]) {
+        lightAngle += 1.0f;
     }
 }
 
