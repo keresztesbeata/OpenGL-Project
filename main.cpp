@@ -13,6 +13,8 @@
 #include "Model3D.hpp"
 #include "SkyBox.hpp"
 #include "Animation.hpp"
+#include "BounceAnimation.hpp"
+#include "SpinAnimation.hpp"
 
 #include <iostream>
 
@@ -29,7 +31,7 @@ glm::mat4 projection;
 glm::mat3 normalMatrix;
 
 // Animations
-Animation objectAnimation;
+Animation * objectAnimation;
 
 // initial position of objects and camera
 glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
@@ -98,7 +100,6 @@ void processCameraMovement();
 
 /* process objectAnimation movement */
 void processAnimations();
-void processObjectAnimation();
 
 /* functions for updating the transformation matrices after the camera or the object has moved*/
 void updateUniforms();
@@ -204,37 +205,44 @@ void updateModelAfterObjectRotation(float angle) {
 }
 
 void processAnimations() {
-    processObjectAnimation();
-}
-
-void processObjectAnimation() {
     // use left shift for object
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
-        float elasticity = 0.5;
-        float speed = 5.0;
-        objectAnimation.setAnimationSpeed(speed);
-        objectAnimation.setTransformationMatrix(model);
-        objectAnimation.startBounceAnimation(elasticity);
-    }
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
-        float speed = 5.0;
-        glm::vec3 axis = glm::vec3(0,1,0); // y axis
-        float dampingFactor = 0.5;
-        objectAnimation.setAnimationSpeed(speed);
-        objectAnimation.setTransformationMatrix(model);
-        objectAnimation.startSpinAnimation(axis, dampingFactor);
-    }
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
         // stop object animation
-        objectAnimation.stopAnimation();
+        objectAnimation->stopAnimation();
     }
-    objectAnimation.playAnimation();
+    if (objectAnimation->isAnimationPlaying()) {
+        objectAnimation->playAnimation();
+    }
+    else {
+        //start a new animation
+        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
+            float animationSpeed = 5.0;
+            float elasticity = 0.5;
+            BounceAnimation * bounceAnimation = new BounceAnimation(*objectAnimation, elasticity);
+            objectAnimation = bounceAnimation;
+            // start the object animation
+            objectAnimation->setAnimationSpeed(animationSpeed);
+            objectAnimation->setTransformationMatrix(model);
+            objectAnimation->startAnimation();
+        }
+        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+            float animationSpeed = 5.0;
+            glm::vec3 axis = glm::vec3(0, 1, 0); // y axis
+            float dampingFactor = 0.5;
+            SpinAnimation * spinAnimation = new SpinAnimation(*objectAnimation, axis, dampingFactor);
+            objectAnimation = spinAnimation;
+            // start the object animation
+            objectAnimation->setAnimationSpeed(animationSpeed);
+            objectAnimation->setTransformationMatrix(model);
+            objectAnimation->startAnimation();
+        }
+    }
 }
 
 void updateTransformationMatrices() {
     // update model matrix
-    if (objectAnimation.isAnimationPlaying()) {
-        model = objectAnimation.getTransformationMatrix();
+    if (objectAnimation->isAnimationPlaying()) {
+        model = objectAnimation->getTransformationMatrix();
     }
     //update view matrix
     view = myCamera.getViewMatrix();
@@ -384,8 +392,9 @@ void initUniforms(gps::Shader shader) {
 }
 
 void initAnimations() {
-    objectAnimation.setInitialPosition(objectInitialPosition);
-    objectAnimation.setTransformationMatrix(model);
+    objectAnimation = new Animation();
+    objectAnimation->setInitialPosition(objectInitialPosition);
+    objectAnimation->setTransformationMatrix(model);
 }
 
 /* callback functions */

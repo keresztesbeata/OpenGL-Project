@@ -49,11 +49,11 @@ namespace gps {
             break;
         }
         case MOVE_FORWARD: {
-            this->cameraPosition += this->cameraFrontDirection * cameraSpeed;
+            this->cameraPosition -= this->cameraFrontDirection * cameraSpeed;
             break;
         }
         case MOVE_BACKWARD: {
-            this->cameraPosition -= this->cameraFrontDirection * cameraSpeed;
+            this->cameraPosition += this->cameraFrontDirection * cameraSpeed;
             break;
         }
         case MOVE_UP: {
