@@ -54,9 +54,9 @@ GLint projectionLoc;
 GLint normalMatrixLoc;
 GLint lightDirLoc;
 GLint lightColorLoc;
+GLint cameraPosLoc;
 
 // camera
-
 gps::Camera myCamera(
     cameraInitialPosition,
     objectInitialPosition,
@@ -77,11 +77,16 @@ gps::Model3D ground;
 gps::Model3D lightCube;
 gps::Model3D screenQuad;
 
+// skybox
+std::vector<const GLchar*> faces;
+gps::SkyBox mySkyBox;
+
 // shaders
 gps::Shader basicShader;
 gps::Shader lightShader;
 gps::Shader screenQuadShader;
 gps::Shader depthMapShader;
+gps::Shader skyboxShader;
 
 GLuint shadowMapFBO;
 GLuint depthMapTexture;
@@ -108,6 +113,7 @@ void initUniforms(gps::Shader shader);
 void initAnimations();
 void initLightSources();
 void initFBO();
+void initSkyBox();
 
 // functions for processing movement actions
 void processMovement();
@@ -149,6 +155,7 @@ int main(int argc, const char* argv[]) {
 
     initOpenGLState();
     initModels();
+    initSkyBox();
     initShaders();
     initLightSources();
     initUniforms(basicShader);
@@ -317,6 +324,8 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
     // send light dir to shader
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
+    // send camera position to shader
+    glUniform3fv(cameraPosLoc, 1, glm::value_ptr(myCamera.getCameraPosition()));
 }
 
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection) {
@@ -380,6 +389,9 @@ void renderScene() {
     
     //draw a white cube around the light
     drawLightSource(lightShader);
+
+    // draw the skybox last
+    mySkyBox.Draw(skyboxShader, view, projection);
 }
 
 void initModels() {
@@ -402,6 +414,9 @@ void initShaders() {
     depthMapShader.loadShader(
         "shaders/depthMapShader.vert", 
         "shaders/depthMapShader.frag");
+    skyboxShader.loadShader(
+        "shaders/skyboxShader.vert",
+        "shaders/skyboxShader.frag");
 }
 
 void initUniforms(gps::Shader shader) {
@@ -437,9 +452,29 @@ void initUniforms(gps::Shader shader) {
     lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightSource->getLightColor()));
 
+    cameraPosLoc = glGetUniformLocation(shader.shaderProgram, "cameraPos");
+    glUniform3fv(cameraPosLoc, 1, glm::value_ptr(myCamera.getCameraPosition()));
+
     // send the projection matrix to the light shader
     lightShader.useShaderProgram();
     glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+    
+    /*
+    // load faces for skybox
+    mySkyBox.Load(faces);
+    skyboxShader.useShaderProgram();
+    glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    */
+    mySkyBox.Load(faces);
+    skyboxShader.loadShader("shaders/skyboxShader.vert", "shaders/skyboxShader.frag");
+    skyboxShader.useShaderProgram();
+    view = myCamera.getViewMatrix();
+    glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+    projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
+    glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
 }
 
 void initAnimations() {
@@ -479,6 +514,15 @@ void initFBO() {
     glDrawBuffer(GL_NONE);
     glReadBuffer(GL_NONE);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void initSkyBox() {
+    faces.push_back("textures/skybox/right.tga");
+    faces.push_back("textures/skybox/left.tga");
+    faces.push_back("textures/skybox/top.tga");
+    faces.push_back("textures/skybox/bottom.tga");
+    faces.push_back("textures/skybox/back.tga");
+    faces.push_back("textures/skybox/front.tga");
 }
 
 // callback functions

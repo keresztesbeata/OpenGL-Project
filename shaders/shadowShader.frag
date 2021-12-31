@@ -11,6 +11,7 @@ out vec4 fColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat3 normalMatrix;
+uniform vec3 cameraPos;
 
 //lighting
 uniform vec3 lightDir;
@@ -21,6 +22,9 @@ uniform sampler2D diffuseTexture;
 uniform sampler2D specularTexture;
 uniform sampler2D shadowMap; 
 
+// skybox
+uniform samplerCube skybox;
+
 //components
 vec3 ambient;
 float ambientStrength = 0.2f;
@@ -28,6 +32,12 @@ vec3 diffuse;
 vec3 specular;
 float specularStrength = 0.5f;
 float shininess = 32.0f;
+
+// environment mapping
+vec3 I;
+vec3 R;
+vec3 refractedColor;
+float refractionCoefficient = 1.52; 
 
 void computeDirLight()
 {
@@ -51,6 +61,12 @@ void computeDirLight()
     vec3 reflectDir = reflect(-lightDirN, normalEye);
     float specCoeff = pow(max(dot(viewDir, reflectDir), 0.0f), 32);
     specular = specularStrength * specCoeff * lightColor;
+
+    float ratio = 1.00 / refractionCoefficient;
+    I = normalize(fPosition - cameraPos);
+    R = refract(normalize(fNormal), I, ratio);
+
+    refractedColor = texture(skybox, R).rgb;
 }
 
 
@@ -84,6 +100,7 @@ void main()
 
     //compute final vertex color 
     vec3 color = min((ambient + (1.0 - shadow) * diffuse) * texture(diffuseTexture, fTexCoords).rgb + (1.0 - shadow) * specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
-
+    
+    //vec3 color = refractedColor;
     fColor = vec4(color, 1.0f);
 }
