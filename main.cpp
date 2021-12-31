@@ -23,7 +23,12 @@
 gps::Window myWindow;
 int myWindowWidth = 1024;
 int myWindowHeight = 768;
-int retina_width, retina_height;
+int retina_width = myWindowWidth;
+int retina_height = myWindowHeight;
+
+// shadow
+const unsigned int SHADOW_WIDTH = 2048;
+const unsigned int SHADOW_HEIGHT = 2048;
 
 // matrices
 glm::mat4 model;
@@ -51,12 +56,13 @@ GLint lightDirLoc;
 GLint lightColorLoc;
 
 // camera
+
 gps::Camera myCamera(
     cameraInitialPosition,
     objectInitialPosition,
     glm::vec3(0.0f, 1.0f, 0.0f));
 
-float rollAngle = 0.0;
+float rollAngle = 45.0;
 // uniform camera movement taking into consideration the frequency of the rendered frames
 GLfloat cameraSpeed = 0.1f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
@@ -69,10 +75,16 @@ GLfloat angle = 0.0f;
 gps::Model3D teapot;
 gps::Model3D ground;
 gps::Model3D lightCube;
+gps::Model3D screenQuad;
 
 // shaders
 gps::Shader basicShader;
 gps::Shader lightShader;
+gps::Shader screenQuadShader;
+gps::Shader depthMapShader;
+
+GLuint shadowMapFBO;
+GLuint depthMapTexture;
 
 // check errors
 GLenum glCheckError_(const char* file, int line);
@@ -95,6 +107,7 @@ void initShaders();
 void initUniforms(gps::Shader shader);
 void initAnimations();
 void initLightSources();
+void initFBO();
 
 // functions for processing movement actions
 void processMovement();
@@ -106,14 +119,14 @@ void processCameraMovement();
 void processAnimations();
 
 // functions for updating the transformation matrices after the camera or the object has moved
-void updateUniforms(glm::mat4 model);
+void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
 glm::mat4 getModelForDrawingGround();
 glm::mat4 getModelForDrawingLightCube();
 
 // render scene of objects
 void renderScene();
-void drawObjects(gps::Shader shader);
+void drawObjects(gps::Shader shader, bool depthPass);
 
 // callback functions for handling user interactions
 void windowResizeCallback(GLFWwindow* window, int width, int height);
@@ -139,6 +152,7 @@ int main(int argc, const char* argv[]) {
     initShaders();
     initLightSources();
     initUniforms(basicShader);
+    initFBO();
     initAnimations();
     setWindowCallbacks();
 
@@ -283,9 +297,14 @@ glm::mat4 getModelForDrawingLightCube() {
     return lightCubeModel;
 }
 
-void updateUniforms(glm::mat4 model) {
+void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     //send model matrix data to shader
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(lightSource->computeLightSpaceTrMatrix()));
+    // do not send the other matrices for the depth map shader
+    if (depthPass) {
+        return;
+    }
     //update view matrix
     view = myCamera.getViewMatrix();
     // send view matrix to shader
@@ -304,18 +323,24 @@ void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 }
 
-void drawObjects(gps::Shader shader) {
+void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
     // draw teapot
-    updateUniforms(model*getModelForDrawingGround());
+    updateUniforms(shader, model*getModelForDrawingGround(), depthPass);
     teapot.Draw(shader);
-    updateUniforms(getModelForDrawingGround());
+    // animate only the object, not the ground
+    if (objectAnimation->isAnimationPlaying()) {
+        updateUniforms(shader, getModelForDrawingGround(), depthPass);
+    }
+    else {
+        // move the surrounding objects (including the ground) on a camera rotation
+        updateUniforms(shader, model * getModelForDrawingGround(), depthPass);
+    }
     ground.Draw(shader);
 }
 
 void drawLightSource(gps::Shader shader) {
     shader.useShaderProgram();
-    getModelForDrawingLightCube();
     updateUniformsForGivenShader(shader, getModelForDrawingLightCube(), myCamera.getViewMatrix(), projection);
     lightCube.Draw(shader);
 }
@@ -325,29 +350,56 @@ void renderScene() {
     float currentFrame = glfwGetTime();
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
+      
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
-    //render the scene
+    //render the scene to the depth buffer 
+    glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    drawObjects(depthMapShader, true);
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    
+    // final scene rendering pass (with shadows)
+    glViewport(0, 0, retina_width, retina_height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    //draw the objects
-    drawObjects(basicShader);
-    // draw the light sources
+    
+    //bind the shadow map
+    basicShader.useShaderProgram();
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, depthMapTexture);
+    glUniform1i(glGetUniformLocation(basicShader.shaderProgram, "shadowMap"), 3);
+    drawObjects(basicShader, false);
+    
+    //draw a white cube around the light
     drawLightSource(lightShader);
 }
-
 
 void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
     ground.LoadModel("models/ground/ground.obj");
     lightCube.LoadModel("models/cube/cube.obj");
+    screenQuad.LoadModel("models/quad/quad.obj");
 }
 
 void initShaders() {
     basicShader.loadShader(
-        "shaders/basic.vert",
-        "shaders/basic.frag");
+        "shaders/shadowShader.vert",
+        "shaders/shadowShader.frag");
     lightShader.loadShader(
         "shaders/lightShader.vert",
         "shaders/lightShader.frag");
+    screenQuadShader.loadShader(
+        "shaders/screenQuad.vert", 
+        "shaders/screenQuad.frag");
+    depthMapShader.loadShader(
+        "shaders/depthMapShader.vert", 
+        "shaders/depthMapShader.frag");
 }
 
 void initUniforms(gps::Shader shader) {
@@ -383,7 +435,7 @@ void initUniforms(gps::Shader shader) {
     lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightSource->getLightColor()));
 
-    // send th eprojection matrix to the light shader
+    // send the projection matrix to the light shader
     lightShader.useShaderProgram();
     glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 }
@@ -403,15 +455,40 @@ void initLightSources() {
 
     lightSource = new LightSource(lightDir, lightColor);
 }
+
+void initFBO() {
+    //Create the FBO, the depth texture and attach the depth texture to the FBO
+    //generate FBO ID 
+    glGenFramebuffers(1, &shadowMapFBO);
+    //create depth texture for FBO 
+    glGenTextures(1, &depthMapTexture);
+    glBindTexture(GL_TEXTURE_2D, depthMapTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+        SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    //attach texture to FBO 
+    glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMapTexture, 0);
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
 // callback functions
 
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
     fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
     glfwGetFramebufferSize(window, &retina_width, &retina_height);
     basicShader.useShaderProgram();
+    
     projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     projectionLoc = glGetUniformLocation(basicShader.shaderProgram, "projection");
-    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
     glViewport(0, 0, retina_width, retina_height);
 }
 
@@ -462,6 +539,9 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
 }
 
 void cleanup() {
+    glDeleteTextures(1, &depthMapTexture);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glDeleteFramebuffers(1, &shadowMapFBO);
     myWindow.Delete();
     //close GL context and any other GLFW resources
     glfwTerminate();

@@ -54,8 +54,6 @@ void Animation::stopAnimation() {
 void Animation::playAnimation() {
 }
 
-
-
 /* helper functions */
 
 bool Animation::isBackToOriginalPosition(glm::vec3 newPosition, glm::vec3 originalPosition, float minDistance) {

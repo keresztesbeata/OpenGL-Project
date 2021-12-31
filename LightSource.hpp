@@ -13,6 +13,7 @@ public:
     glm::vec3 getLightDir();
     glm::vec3 getLightColor();
     void move(gps::MOVE_DIRECTION direction);
+    glm::mat4 computeLightSpaceTrMatrix();
 
 private:
     void rotate(float angle, glm::vec3 axis);
