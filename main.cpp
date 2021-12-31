@@ -459,20 +459,10 @@ void initUniforms(gps::Shader shader) {
     lightShader.useShaderProgram();
     glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
-    
-    /*
-    // load faces for skybox
+    // load faces for skybox    
     mySkyBox.Load(faces);
     skyboxShader.useShaderProgram();
     glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    */
-    mySkyBox.Load(faces);
-    skyboxShader.loadShader("shaders/skyboxShader.vert", "shaders/skyboxShader.frag");
-    skyboxShader.useShaderProgram();
-    view = myCamera.getViewMatrix();
-    glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
-    projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
 }

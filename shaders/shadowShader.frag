@@ -33,12 +33,6 @@ vec3 specular;
 float specularStrength = 0.5f;
 float shininess = 32.0f;
 
-// environment mapping
-vec3 I;
-vec3 R;
-vec3 refractedColor;
-float refractionCoefficient = 1.52; 
-
 void computeDirLight()
 {
     //compute eye space coordinates
@@ -61,12 +55,6 @@ void computeDirLight()
     vec3 reflectDir = reflect(-lightDirN, normalEye);
     float specCoeff = pow(max(dot(viewDir, reflectDir), 0.0f), 32);
     specular = specularStrength * specCoeff * lightColor;
-
-    float ratio = 1.00 / refractionCoefficient;
-    I = normalize(fPosition - cameraPos);
-    R = refract(normalize(fNormal), I, ratio);
-
-    refractedColor = texture(skybox, R).rgb;
 }
 
 
