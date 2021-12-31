@@ -62,7 +62,7 @@ gps::Camera myCamera(
     objectInitialPosition,
     glm::vec3(0.0f, 1.0f, 0.0f));
 
-float rollAngle = 45.0;
+float rollAngle = 0.0;
 // uniform camera movement taking into consideration the frequency of the rendered frames
 GLfloat cameraSpeed = 0.1f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
@@ -221,39 +221,41 @@ void processObjectMovement() {
 }
 
 void processAnimations() {
-    // use left shift for object
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
-        // stop object animation
-        objectAnimation->stopAnimation();
-    }
+    // use left shift for object animation
+    
     if (objectAnimation->isAnimationPlaying()) {
-        objectAnimation->playAnimation();
+        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
+            // stop object animation
+            objectAnimation->stopAnimation();
+        }
+        else {
+            objectAnimation->playAnimation();
+        }
         model = objectAnimation->getTransformationMatrix();
+        return;
     }
-    else {
-        model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
-        //start a new animation
-        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
-            float animationSpeed = 5.0;
-            float elasticity = 0.5;
-            BounceAnimation* bounceAnimation = new BounceAnimation(*objectAnimation, elasticity);
-            objectAnimation = bounceAnimation;
-            // start the object animation
-            objectAnimation->setAnimationSpeed(animationSpeed);
-            objectAnimation->setTransformationMatrix(model);
-            objectAnimation->startAnimation();
-        }
-        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
-            float animationSpeed = 5.0;
-            glm::vec3 axis = glm::vec3(0, 1, 0); // y axis
-            float dampingFactor = 0.5;
-            SpinAnimation* spinAnimation = new SpinAnimation(*objectAnimation, axis, dampingFactor);
-            objectAnimation = spinAnimation;
-            // start the object animation
-            objectAnimation->setAnimationSpeed(animationSpeed);
-            objectAnimation->setTransformationMatrix(model);
-            objectAnimation->startAnimation();
-        }
+    model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
+    //start a new animation
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
+        float animationSpeed = 5.0;
+        float elasticity = 0.5;
+        BounceAnimation* bounceAnimation = new BounceAnimation(*objectAnimation, elasticity);
+        objectAnimation = bounceAnimation;
+        // start the object animation
+        objectAnimation->setAnimationSpeed(animationSpeed);
+        objectAnimation->setTransformationMatrix(model);
+        objectAnimation->startAnimation();
+    }
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+        float animationSpeed = 5.0;
+        glm::vec3 axis = glm::vec3(0, 1, 0); // y axis
+        float dampingFactor = 0.5;
+        SpinAnimation* spinAnimation = new SpinAnimation(*objectAnimation, axis, dampingFactor);
+        objectAnimation = spinAnimation;
+        // start the object animation
+        objectAnimation->setAnimationSpeed(animationSpeed);
+        objectAnimation->setTransformationMatrix(model);
+        objectAnimation->startAnimation();
     }
 }
 
@@ -488,6 +490,8 @@ void windowResizeCallback(GLFWwindow* window, int width, int height) {
     
     projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     projectionLoc = glGetUniformLocation(basicShader.shaderProgram, "projection");
+    // send projection matrix to shader
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
     glViewport(0, 0, retina_width, retina_height);
 }
