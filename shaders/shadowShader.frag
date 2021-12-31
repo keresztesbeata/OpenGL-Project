@@ -11,6 +11,7 @@ out vec4 fColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat3 normalMatrix;
+uniform vec3 cameraPos;
 
 //lighting
 uniform vec3 lightDir;
@@ -20,6 +21,9 @@ uniform vec3 lightColor;
 uniform sampler2D diffuseTexture;
 uniform sampler2D specularTexture;
 uniform sampler2D shadowMap; 
+
+// skybox
+uniform samplerCube skybox;
 
 //components
 vec3 ambient;
@@ -84,6 +88,7 @@ void main()
 
     //compute final vertex color 
     vec3 color = min((ambient + (1.0 - shadow) * diffuse) * texture(diffuseTexture, fTexCoords).rgb + (1.0 - shadow) * specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
-
+    
+    //vec3 color = refractedColor;
     fColor = vec4(color, 1.0f);
 }
