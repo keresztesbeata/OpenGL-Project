@@ -75,9 +75,10 @@ float computeShadow() {
 		return 0.0f; 
 
     float bias = max(0.05 * (1.0 - dot(fNormal, lightDir)), 0.005);  
-	// Check whether current frag pos is in shadow 
+	
+    // Check whether current frag pos is in shadow 
 	float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
-    
+
 	return shadow;
 }
 

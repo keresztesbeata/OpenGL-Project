@@ -39,10 +39,11 @@ glm::mat4 lightRotation;
 
 // Animations
 Animation* objectAnimation;
+glm::mat4 objectTransformationMatrix;
 
 // initial position of objects and camera
 glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
-glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 0.0f, 5.0f);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 5.0f, 25.0f);
 
 // light source
 LightSource * lightSource;
@@ -72,10 +73,9 @@ GLboolean pressedKeys[1024];
 GLfloat angle = 0.0f;
 
 // models
-gps::Model3D teapot;
-gps::Model3D ground;
+gps::Model3D basketBall;
 gps::Model3D lightCube;
-gps::Model3D screenQuad;
+gps::Model3D basketBallCourt;
 
 // skybox
 std::vector<const GLchar*> faces;
@@ -125,7 +125,7 @@ void processCameraMovement();
 void processAnimations();
 
 // functions for updating the transformation matrices after the camera or the object has moved
-void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
+void updateUniforms(gps::Shader shader, glm::mat4 model, glm::mat4 transformationMatrix, bool depthPass);
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
 glm::mat4 getModelForDrawingGround();
 glm::mat4 getModelForDrawingLightCube();
@@ -221,15 +221,17 @@ void processCameraMovement() {
 void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
+        model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
     }
     if (pressedKeys[GLFW_KEY_E]) {
         angle += 1.0f;
+        model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
     }
 }
 
 void processAnimations() {
     // use left shift for object animation
-    
+
     if (objectAnimation->isAnimationPlaying()) {
         if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
             // stop object animation
@@ -238,10 +240,9 @@ void processAnimations() {
         else {
             objectAnimation->playAnimation();
         }
-        model = objectAnimation->getTransformationMatrix();
         return;
     }
-    model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
+
     //start a new animation
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
         float animationSpeed = 5.0;
@@ -294,8 +295,7 @@ void processLightMovement() {
 }
 
 glm::mat4 getModelForDrawingGround() {
-    glm::mat4 groundModel = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, -0.5f, 0.0f));
-    groundModel = glm::scale(groundModel, glm::vec3(0.5f));
+    glm::mat4 groundModel = glm::scale(groundModel, glm::vec3(0.5f));
     return groundModel;
 }
 
@@ -306,9 +306,9 @@ glm::mat4 getModelForDrawingLightCube() {
     return lightCubeModel;
 }
 
-void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
+void updateUniforms(gps::Shader shader, glm::mat4 model, glm::mat4 transformationMatrix, bool depthPass) {
     //send model matrix data to shader
-    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model * transformationMatrix));
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(lightSource->computeLightSpaceTrMatrix()));
     // do not send the other matrices for the depth map shader
     if (depthPass) {
@@ -337,17 +337,11 @@ void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
     // draw teapot
-    updateUniforms(shader, model*getModelForDrawingGround(), depthPass);
-    teapot.Draw(shader);
+    updateUniforms(shader, model, objectAnimation->getTransformationMatrix(), depthPass);
+    basketBall.Draw(shader);
     // animate only the object, not the ground
-    if (objectAnimation->isAnimationPlaying()) {
-        updateUniforms(shader, getModelForDrawingGround(), depthPass);
-    }
-    else {
-        // move the surrounding objects (including the ground) on a camera rotation
-        updateUniforms(shader, model * getModelForDrawingGround(), depthPass);
-    }
-    ground.Draw(shader);
+    updateUniforms(shader, model, glm::mat4(1.0),depthPass);
+    basketBallCourt.Draw(shader);
 }
 
 void drawLightSource(gps::Shader shader) {
@@ -391,14 +385,13 @@ void renderScene() {
     drawLightSource(lightShader);
 
     // draw the skybox last
-    mySkyBox.Draw(skyboxShader, view, projection);
+    //mySkyBox.Draw(skyboxShader, view, projection);
 }
 
 void initModels() {
-    teapot.LoadModel("models/teapot/teapot20segUT.obj");
-    ground.LoadModel("models/ground/ground.obj");
-    lightCube.LoadModel("models/cube/cube.obj");
-    screenQuad.LoadModel("models/quad/quad.obj");
+    basketBall.LoadModel("models/basketball/basketball.obj","models/basketball/");
+    //lightCube.LoadModel("models/bloom_light/bloom_light.obj","models/bloom_light");
+    basketBallCourt.LoadModel("models/basketball_court/basketball_court.obj", "models/basketball_court/");
 }
 
 void initShaders() {
@@ -439,7 +432,7 @@ void initUniforms(gps::Shader shader) {
     // create projection matrix
     projection = glm::perspective(glm::radians(45.0f),
         (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
-        0.1f, 20.0f);
+        0.1f, 1000.0f);
     projectionLoc = glGetUniformLocation(shader.shaderProgram, "projection");
     // send projection matrix to shader
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
@@ -470,13 +463,12 @@ void initUniforms(gps::Shader shader) {
 void initAnimations() {
     objectAnimation = new Animation();
     objectAnimation->setInitialPosition(objectInitialPosition);
-    objectAnimation->setTransformationMatrix(model);
 }
 
 // must be called before initUniforms()!!!
 void initLightSources() {
-    //set the light direction (direction towards the light)
-    glm::vec3 lightDir = glm::vec3(0.0f, 1.0f, 1.0f);
+    //set the light direction (direction towards the light = position o flight source)
+    glm::vec3 lightDir = glm::vec3(0.0f, 5.0f, 1.0f);
     //set light color => white light
     glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
@@ -519,6 +511,9 @@ void initSkyBox() {
 
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
     fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
+    if (width == 0 || height == 0) {
+        return;
+    }
     glfwGetFramebufferSize(window, &retina_width, &retina_height);
     basicShader.useShaderProgram();
     

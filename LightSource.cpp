@@ -32,9 +32,9 @@ glm::vec3 LightSource::getLightColor() {
 
 glm::mat4 LightSource::computeLightSpaceTrMatrix() {
     // Return the light-space transformation matrix
-    glm::mat4 lightView = glm::lookAt(lightDir, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    const GLfloat near_plane = 0.1f, far_plane = 5.0f;
-    glm::mat4 lightProjection = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, near_plane, far_plane);
+    glm::mat4 lightView = glm::lookAt(lightDir, glm::vec3(0), glm::vec3(0.0f, 1.0f, 0.0f));
+    const GLfloat near_plane = 0.1f, far_plane = 100.0f;
+    glm::mat4 lightProjection = glm::ortho(-100.0f, 100.0f, 0.0f, 100.0f, near_plane, far_plane);
     glm::mat4 lightSpaceTrMatrix = lightProjection * lightView;
     return lightSpaceTrMatrix;
 }
