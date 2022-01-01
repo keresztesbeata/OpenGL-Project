@@ -1,9 +1,5 @@
 #include "LightSource.hpp"
 
-/* for debugging */
-void printMatrix(glm::mat4 matrix);
-void printVector(glm::vec3 v);
-
 LightSource::LightSource(glm::vec3 lightDir, glm::vec3 lightColor) {
     this->transformationMatrix = glm::mat4(1.0f);
 	this->lightDir = lightDir;
@@ -82,17 +78,3 @@ void LightSource::rotate(float angle, glm::vec3 axis) {
     setTransformationMatrix(glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis));
 }
 
-
-void printMatrix(glm::mat4 matrix) {
-    std::cout << "matrix = " << std::endl;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            std::cout << matrix[i][j] << " ";
-        }
-        std::cout << std::endl;
-    }
-}
-
-void printVector(glm::vec3 v) {
-    std::cout << "v = (" << v.x << ", " << v.y << ", " << v.z << ");" << std::endl;
-}

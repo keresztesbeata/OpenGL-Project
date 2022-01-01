@@ -37,13 +37,16 @@ glm::mat4 projection;
 glm::mat3 normalMatrix;
 glm::mat4 lightRotation;
 
-// Animations
-Animation* objectAnimation;
-glm::mat4 objectTransformationMatrix;
+// object's properties
+float ballElasticity = 0.5;
 
 // initial position of objects and camera
-glm::vec3 objectInitialPosition = glm::vec3(0.0f, 0.0f, -10.0f);
-glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 5.0f, 25.0f);
+glm::vec3 ballPosition = glm::vec3(0.0f, 5.0f, -10.0f);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 7.0f, 15.0f);
+
+// Animations
+float animationSpeed = 5.0;
+Animation ballAnimation(ballElasticity, ballPosition, animationSpeed);
 
 // light source
 LightSource * lightSource;
@@ -60,9 +63,10 @@ GLint cameraPosLoc;
 // camera
 gps::Camera myCamera(
     cameraInitialPosition,
-    objectInitialPosition,
+    ballPosition,
     glm::vec3(0.0f, 1.0f, 0.0f));
 
+GLfloat cameraAngle = 90.0f;
 float rollAngle = 0.0;
 // uniform camera movement taking into consideration the frequency of the rendered frames
 GLfloat cameraSpeed = 0.1f;
@@ -70,7 +74,6 @@ float deltaTime = 0.0f;	// Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
 GLboolean pressedKeys[1024];
-GLfloat angle = 0.0f;
 
 // models
 gps::Model3D basketBall;
@@ -84,7 +87,6 @@ gps::SkyBox mySkyBox;
 // shaders
 gps::Shader basicShader;
 gps::Shader lightShader;
-gps::Shader screenQuadShader;
 gps::Shader depthMapShader;
 gps::Shader skyboxShader;
 
@@ -110,7 +112,6 @@ void initOpenGLState();
 void initModels();
 void initShaders();
 void initUniforms(gps::Shader shader);
-void initAnimations();
 void initLightSources();
 void initFBO();
 void initSkyBox();
@@ -121,13 +122,10 @@ void processLightMovement();
 void processObjectMovement();
 void processCameraMovement();
 
-// process objectAnimation movement
-void processAnimations();
-
 // functions for updating the transformation matrices after the camera or the object has moved
-void updateUniforms(gps::Shader shader, glm::mat4 model, glm::mat4 transformationMatrix, bool depthPass);
+void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
-glm::mat4 getModelForDrawingGround();
+glm::mat4 getBallTransformation();
 glm::mat4 getModelForDrawingLightCube();
 
 // render scene of objects
@@ -160,7 +158,6 @@ int main(int argc, const char* argv[]) {
     initLightSources();
     initUniforms(basicShader);
     initFBO();
-    initAnimations();
     setWindowCallbacks();
 
     glCheckError();
@@ -183,7 +180,6 @@ int main(int argc, const char* argv[]) {
 void processMovement() {
     processCameraMovement();
     processObjectMovement();
-    processAnimations();
     processLightMovement();
 }
 
@@ -216,54 +212,13 @@ void processCameraMovement() {
         rollAngle += 1.0;
         myCamera.roll(rollAngle);
     }
-}
-
-void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_Q]) {
-        angle -= 1.0f;
-        model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
+        cameraAngle -= 1.0f;
+        model = glm::rotate(glm::mat4(1.0), glm::radians(cameraAngle), glm::vec3(0, 1, 0));
     }
     if (pressedKeys[GLFW_KEY_E]) {
-        angle += 1.0f;
-        model = glm::rotate(glm::mat4(1.0), glm::radians(angle), glm::vec3(0, 1, 0));
-    }
-}
-
-void processAnimations() {
-    // use left shift for object animation
-
-    if (objectAnimation->isAnimationPlaying()) {
-        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
-            // stop object animation
-            objectAnimation->stopAnimation();
-        }
-        else {
-            objectAnimation->playAnimation();
-        }
-        return;
-    }
-
-    //start a new animation
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
-        float animationSpeed = 5.0;
-        float elasticity = 0.5;
-        BounceAnimation* bounceAnimation = new BounceAnimation(*objectAnimation, elasticity);
-        objectAnimation = bounceAnimation;
-        // start the object animation
-        objectAnimation->setAnimationSpeed(animationSpeed);
-        objectAnimation->setTransformationMatrix(model);
-        objectAnimation->startAnimation();
-    }
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
-        float animationSpeed = 5.0;
-        glm::vec3 axis = glm::vec3(0, 1, 0); // y axis
-        float dampingFactor = 0.5;
-        SpinAnimation* spinAnimation = new SpinAnimation(*objectAnimation, axis, dampingFactor);
-        objectAnimation = spinAnimation;
-        // start the object animation
-        objectAnimation->setAnimationSpeed(animationSpeed);
-        objectAnimation->setTransformationMatrix(model);
-        objectAnimation->startAnimation();
+        cameraAngle += 1.0f;
+        model = glm::rotate(glm::mat4(1.0), glm::radians(cameraAngle), glm::vec3(0, 1, 0));
     }
 }
 
@@ -294,21 +249,44 @@ void processLightMovement() {
     }
 }
 
-glm::mat4 getModelForDrawingGround() {
-    glm::mat4 groundModel = glm::scale(groundModel, glm::vec3(0.5f));
-    return groundModel;
+void processObjectMovement() {
+    // use left shift for object animation
+    
+    //start a new animation
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
+        // bounce
+        ballAnimation.setInitialPosition(ballPosition);
+        ballAnimation.startAnimation(BOUNCE_ANIMATION);
+        return;
+    }
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
+        // spin
+        ballAnimation.setInitialPosition(ballPosition);
+        ballAnimation.startAnimation(SPIN_ANIMATION);
+        return;
+    }
+    if (ballAnimation.isAnimationPlaying()) {
+        if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
+            // stop object animation
+            ballAnimation.stopAnimation();
+            return;
+        }
+        // play the current animation if any
+        ballAnimation.playAnimation();
+        ballPosition = ballAnimation.getCurrentPosition();
+    }
 }
 
 glm::mat4 getModelForDrawingLightCube() {
-    glm::mat4 lightCubeModel = glm::mat4(1.0);// lightSource->getTransformationMatrix();
+    glm::mat4 lightCubeModel = glm::mat4(1.0);
     lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightSource->getLightDir());
-    lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.05f, 0.05f, 0.05f));
+    lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.5f, 0.5f, 0.5f));
     return lightCubeModel;
 }
 
-void updateUniforms(gps::Shader shader, glm::mat4 model, glm::mat4 transformationMatrix, bool depthPass) {
+void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     //send model matrix data to shader
-    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model * transformationMatrix));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(lightSource->computeLightSpaceTrMatrix()));
     // do not send the other matrices for the depth map shader
     if (depthPass) {
@@ -334,13 +312,21 @@ void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 }
 
+glm::mat4 getBallTransformation() {
+    return glm::translate(glm::mat4(1.0), 1.0f * ballPosition);
+}
+
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
     // draw teapot
-    updateUniforms(shader, model, objectAnimation->getTransformationMatrix(), depthPass);
+    glm::mat4 ballTransformation = getBallTransformation();
+    if (ballAnimation.isAnimationPlaying()) {
+        ballTransformation = ballTransformation * ballAnimation.getTransformationMatrix();
+    }
+    updateUniforms(shader, ballTransformation * model, depthPass);
     basketBall.Draw(shader);
     // animate only the object, not the ground
-    updateUniforms(shader, model, glm::mat4(1.0),depthPass);
+    updateUniforms(shader, model, depthPass);
     basketBallCourt.Draw(shader);
 }
 
@@ -390,7 +376,7 @@ void renderScene() {
 
 void initModels() {
     basketBall.LoadModel("models/basketball/basketball.obj","models/basketball/");
-    //lightCube.LoadModel("models/bloom_light/bloom_light.obj","models/bloom_light");
+    lightCube.LoadModel("models/bloom_light/bloom_light.obj","models/bloom_light");
     basketBallCourt.LoadModel("models/basketball_court/basketball_court.obj", "models/basketball_court/");
 }
 
@@ -401,9 +387,6 @@ void initShaders() {
     lightShader.loadShader(
         "shaders/lightShader.vert",
         "shaders/lightShader.frag");
-    screenQuadShader.loadShader(
-        "shaders/screenQuad.vert", 
-        "shaders/screenQuad.frag");
     depthMapShader.loadShader(
         "shaders/depthMapShader.vert", 
         "shaders/depthMapShader.frag");
@@ -416,7 +399,7 @@ void initUniforms(gps::Shader shader) {
     shader.useShaderProgram();
 
     // create model matrix for teapot
-    model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+    model = glm::rotate(glm::mat4(1.0f), glm::radians(cameraAngle), glm::vec3(0.0f, 1.0f, 0.0f));
     modelLoc = glGetUniformLocation(shader.shaderProgram, "model");
 
     // get view matrix for current camera
@@ -458,11 +441,6 @@ void initUniforms(gps::Shader shader) {
     glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
-}
-
-void initAnimations() {
-    objectAnimation = new Animation();
-    objectAnimation->setInitialPosition(objectInitialPosition);
 }
 
 // must be called before initUniforms()!!!
