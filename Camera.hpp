@@ -32,7 +32,6 @@ namespace gps {
         void rotate(float pitch, float yaw);
         // roll camera with a given angle
         void roll(float rollAngle);
-
         
     private:
         glm::vec3 cameraPosition;

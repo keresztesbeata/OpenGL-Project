@@ -10,6 +10,7 @@ out vec4 fColor;
 //matrices
 uniform mat4 model;
 uniform mat4 view;
+uniform mat4 projection;
 uniform mat3 normalMatrix;
 uniform vec3 cameraPos;
 
