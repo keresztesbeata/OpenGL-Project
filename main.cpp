@@ -38,17 +38,11 @@ glm::mat4 lightRotation;
 // object's properties
 const float BALL_ELASTICITY = 0.5;
 const float BALL_WEIGHT = 5;
-const float PLAYER_HEIGHT = 10.0; //25.0f;
+const float PLAYER_HEIGHT = 15.0; //25.0f;
 const float DIST_FROM_BALL = 50.0f;
 const float MIN_DIST_FROM_BALL = 2.0;
 const float LIGHT_HEIGHT = 10.0f;
 const float GLOBAL_LIGHT_HEIGHT = 20.0f;
-
-const glm::vec3 RED_COLOUR = glm::vec3(1, 0, 0);
-const glm::vec3 GREEN_COLOUR = glm::vec3(0, 1, 0);
-const glm::vec3 BLUE_COLOUR = glm::vec3(0, 0, 1);
-const glm::vec3 WHITE_COLOUR = glm::vec3(1, 1, 1);
-
 const glm::vec3 GOAL1_POSITION = glm::vec3(0, 30, -30);
 
 // initial position of objects and camera
@@ -56,26 +50,41 @@ glm::vec3 ballPosition = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_BALL);
 glm::vec3 initialLightPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT, 1.0);
 
-glm::vec3 initialPointLightMiddlePosition = glm::vec3(0.0, LIGHT_HEIGHT, 1.0);
-glm::vec3 initialPointLightLeftPosition = glm::vec3(-10.0, LIGHT_HEIGHT/2, 1.0);
-glm::vec3 initialPointLightRightPosition = glm::vec3(10.0, LIGHT_HEIGHT/2, 1.0);
-
-
-// defines the radius for spotlights
-float cutOffAngle = 10.0;
-glm::vec3 spotLightTarget = ballPosition;
-
-glm::vec3 moveDirection = ballPosition;
-
-// Animations
-float animationSpeed = 5.0;
-Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballPosition, animationSpeed);
-
 // light sources
 LightSource* lightSource;
 LightSource* pointLightMiddle;
 LightSource* pointLightLeft;
 LightSource* pointLightRight;
+
+// initial light position
+glm::vec3 initialPointLightMiddlePosition = glm::vec3(0.0, LIGHT_HEIGHT, 1.0);
+glm::vec3 initialPointLightLeftPosition = glm::vec3(-10.0, LIGHT_HEIGHT, 1.0);
+glm::vec3 initialPointLightRightPosition = glm::vec3(10.0, LIGHT_HEIGHT, 1.0);
+
+// light properties
+const glm::vec3 RED_COLOUR = glm::vec3(1, 0, 0);
+const glm::vec3 GREEN_COLOUR = glm::vec3(0, 1, 0);
+const glm::vec3 BLUE_COLOUR = glm::vec3(0, 0, 1);
+const glm::vec3 WHITE_COLOUR = glm::vec3(1, 1, 1);
+
+float cutOffAngle = 5.0; // defines the radius for spotlights
+glm::vec3 spotLightTarget;
+
+// Animations
+float animationSpeed = 5.0;
+Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballPosition, animationSpeed);
+glm::vec3 moveDirection = ballPosition;
+
+// shaders
+gps::Shader basicShader;
+gps::Shader lightShader;
+gps::Shader flashLightShader;
+gps::Shader multipleLightsShader;
+gps::Shader depthMapShader;
+gps::Shader skyboxShader;
+
+enum SHADER_TYPE {BASIC, FLASH_LIGHT, POINT_LIGHTS};
+SHADER_TYPE currentShader = BASIC;
 
 // shader uniform locations
 GLint modelLoc;
@@ -85,6 +94,7 @@ GLint normalMatrixLoc;
 GLint lightDirLoc;
 GLint lightColorLoc;
 GLint cutOffAngleLoc;
+GLint shininessLoc;
 GLint cameraPosLoc;
 GLint spotLightTargetLoc;
 
@@ -116,12 +126,7 @@ gps::Model3D rightLight;
 std::vector<const GLchar*> faces;
 gps::SkyBox mySkyBox;
 
-// shaders
-gps::Shader basicShader;
-gps::Shader lightShader;
-gps::Shader depthMapShader;
-gps::Shader skyboxShader;
-
+// depth map
 GLuint shadowMapFBO;
 GLuint depthMapTexture;
 
@@ -154,12 +159,15 @@ void processLightMovement();
 void processObjectMovement();
 void processCameraMovement();
 
+// select a shader
+void selectShader();
+
 // functions for updating the transformation matrices after the camera or the object has moved
 void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
 glm::mat4 getBallTransformation();
 glm::mat4 getSceneTransformation();
-glm::mat4 getModelForDrawingLightCube(glm::vec3 lightDir);
+glm::mat4 getModelForDrawingLightCube(LightSource * lightSource);
 
 // render scene of objects
 void renderScene();
@@ -198,6 +206,7 @@ int main(int argc, const char* argv[]) {
     // application loop
     while (!glfwWindowShouldClose(myWindow.getWindow())) {
         processMovement();
+        selectShader();
         renderScene();
 
         glfwPollEvents();
@@ -209,6 +218,21 @@ int main(int argc, const char* argv[]) {
     cleanup();
 
     return EXIT_SUCCESS;
+}
+
+void selectShader() {
+    if (pressedKeys[GLFW_KEY_4]) {
+        currentShader = BASIC;
+        initUniforms(basicShader);
+    }
+    if (pressedKeys[GLFW_KEY_5]) {
+        currentShader = FLASH_LIGHT;
+        initUniforms(flashLightShader);
+    }
+    if (pressedKeys[GLFW_KEY_6]) {
+        currentShader = POINT_LIGHTS;
+        initUniforms(multipleLightsShader);
+    }
 }
 
 void processMovement() {
@@ -355,13 +379,6 @@ void processObjectMovement() {
     }
 }
 
-glm::mat4 getModelForDrawingLightCube(glm::vec3 lightDir) {
-    glm::mat4 lightCubeModel = glm::mat4(1.0);
-    lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightDir);
-    lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.5f, 0.5f, 0.5f));
-    return lightCubeModel;
-}
-
 void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     //send model matrix data to shader
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -369,7 +386,7 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixLeft"), 1, GL_FALSE, glm::value_ptr(pointLightLeft->computeLightSpaceTrMatrix()));
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixRight"), 1, GL_FALSE, glm::value_ptr(pointLightRight->computeLightSpaceTrMatrix()));
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixMiddle"), 1, GL_FALSE, glm::value_ptr(pointLightMiddle->computeLightSpaceTrMatrix()));
-    // do not send the other matrices for the depth map shader
+    // do not send the other matrices to the depth map shader
     if (depthPass) {
         return;
     }
@@ -385,7 +402,12 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     //send normal matrix data to shader
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
     // send light dir to shader
-    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
+    if (currentShader == BASIC) {
+        glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightPosition()));
+    }
+    else {
+        glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
+    }
     glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(spotLightTarget));
     glUniform1f(cutOffAngleLoc, cos(glm::radians(cutOffAngle)));
     // send camera position to shader
@@ -397,6 +419,13 @@ void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     projection = glm::perspective(glm::radians(fov), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+}
+
+glm::mat4 getModelForDrawingLightCube(LightSource * lightSource) {
+    glm::mat4 lightCubeModel = glm::mat4(1.0);
+    lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightSource->getLightPosition());
+    lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.5f, 0.5f, 0.5f));
+    return lightCubeModel;
 }
 
 glm::mat4 getBallTransformation() {
@@ -421,20 +450,19 @@ void drawObjects(gps::Shader shader, bool depthPass) {
     updateUniforms(shader, ballTransformation * model, depthPass);
     basketBall.Draw(shader);
     glm::mat4 sceneTransformation = getSceneTransformation();
-    // animate only the object, not the ground
     updateUniforms(shader, sceneTransformation * model, depthPass);
     basketBallCourt.Draw(shader);
 }
 
-void drawLightSource(gps::Shader shader) {
+void drawLightSources(gps::Shader shader) {
     shader.useShaderProgram();
-    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(lightSource->getLightDir()), myCamera.getViewMatrix(), projection);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(lightSource), myCamera.getViewMatrix(), projection);
     lightCube.Draw(shader);
-    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightMiddle->getLightDir()), myCamera.getViewMatrix(), projection);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightMiddle), myCamera.getViewMatrix(), projection);
     middleLight.Draw(shader);
-    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightLeft->getLightDir()), myCamera.getViewMatrix(), projection);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightLeft), myCamera.getViewMatrix(), projection);
     leftLight.Draw(shader);
-    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightRight->getLightDir()), myCamera.getViewMatrix(), projection);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightRight), myCamera.getViewMatrix(), projection);
     rightLight.Draw(shader);
 }
 
@@ -443,11 +471,7 @@ void renderScene() {
     float currentFrame = glfwGetTime();
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
-
-    lightSource->setLightPosition(myCamera.getCameraPosition());
-    lightSource->setLightTarget(myCamera.getCameraFrontDirection());
-    spotLightTarget = lightSource->getLightTarget();
-
+    
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -471,10 +495,34 @@ void renderScene() {
     glActiveTexture(GL_TEXTURE3);
     glBindTexture(GL_TEXTURE_2D, depthMapTexture);
     glUniform1i(glGetUniformLocation(basicShader.shaderProgram, "shadowMap"), 3);
-    drawObjects(basicShader, false);
 
-    //draw a white cube around the light
-    drawLightSource(lightShader);
+    if (currentShader == FLASH_LIGHT) {
+        // light is attached to the front of the camera
+        lightSource->setLightPosition(myCamera.getCameraPosition());
+        lightSource->setLightTarget(myCamera.getCameraFrontDirection());
+    }
+    else {
+        lightSource->setLightTarget(ballPosition);
+    }
+    spotLightTarget = lightSource->getLightTarget();
+
+    switch (currentShader) {
+        case BASIC: {
+            drawObjects(basicShader, false);
+            break;
+        }
+        case FLASH_LIGHT: {
+            drawObjects(flashLightShader, false);
+            break;
+        }
+        case POINT_LIGHTS: {
+            drawObjects(multipleLightsShader, false);
+            break;
+        }
+    }
+    
+    //draw a white cube around each light
+    drawLightSources(lightShader);
 
     // draw the skybox last
     //mySkyBox.Draw(skyboxShader, view, projection);
@@ -491,8 +539,8 @@ void initModels() {
 
 void initShaders() {
     basicShader.loadShader(
-        "shaders/multipleLightsShader.vert",
-        "shaders/multipleLightsShader.frag");
+        "shaders/shadowShader.vert",
+        "shaders/shadowShader.frag");
     lightShader.loadShader(
         "shaders/lightShader.vert",
         "shaders/lightShader.frag");
@@ -502,6 +550,12 @@ void initShaders() {
     skyboxShader.loadShader(
         "shaders/skyboxShader.vert",
         "shaders/skyboxShader.frag");
+    flashLightShader.loadShader(
+        "shaders/flashLightShader.vert",
+        "shaders/flashLightShader.frag");
+    multipleLightsShader.loadShader(
+        "shaders/multipleLightsShader.vert",
+        "shaders/multipleLightsShader.frag");
 }
 
 void initUniforms(gps::Shader shader) {
@@ -574,8 +628,8 @@ void initUniforms(gps::Shader shader) {
 
 // must be called before initUniforms()!!!
 void initLightSources() {
-    //set the light direction (direction towards the light = position o flight sources
-    //set light color => white light
+    //set the light target (where the lights are pointing to) and position of light sources
+    //set light color 
     
     lightSource = new LightSource(initialLightPosition, ballPosition, WHITE_COLOUR);
     pointLightMiddle = new LightSource(initialPointLightMiddlePosition, ballPosition, RED_COLOUR);
@@ -663,18 +717,12 @@ void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
     // change the radius of the flashlight
     float inc = (yoffset < 0)? 1.0 : -1.0;
     cutOffAngle += inc;
-    if (cutOffAngle < 0) {
-        cutOffAngle = 0;
-    }
-    else if(cutOffAngle> 45) {
-        cutOffAngle = 45;
+    if (cutOffAngle < 5.0) {
+        cutOffAngle = 5.0;
     }
 }
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
-    if (!(firstMouseMovement || allowMouseMovements)) {
-        return;
-    }
     if (firstMouseMovement) {
         lastX = xpos;
         lastY = ypos;

@@ -8,11 +8,17 @@ out vec3 fPosition;
 out vec3 fNormal;
 out vec2 fTexCoords;
 out vec4 fragPosLightSpace;
+out vec4 fragPosLightSpaceLeft;
+out vec4 fragPosLightSpaceRight;
+out vec4 fragPosLightSpaceMiddle;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform mat4 lightSpaceTrMatrix; 
+uniform mat4 lightSpaceTrMatrixLeft; 
+uniform mat4 lightSpaceTrMatrixRight; 
+uniform mat4 lightSpaceTrMatrixMiddle;
 
 void main() 
 {
@@ -21,4 +27,8 @@ void main()
 	fNormal = vNormal;
 	fTexCoords = vTexCoords;
 	fragPosLightSpace = lightSpaceTrMatrix * model * vec4(vPosition, 1.0f);
+	fragPosLightSpaceLeft = lightSpaceTrMatrixLeft * model * vec4(vPosition, 1.0f);
+	fragPosLightSpaceRight = lightSpaceTrMatrixRight * model * vec4(vPosition, 1.0f);
+	fragPosLightSpaceMiddle = lightSpaceTrMatrixMiddle * model * vec4(vPosition, 1.0f);
+
 }

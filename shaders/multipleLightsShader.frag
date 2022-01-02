@@ -29,6 +29,7 @@ uniform vec3 lightDir;
 uniform vec3 lightColor;
 uniform vec3 spotLightTarget;
 uniform float cutOffAngle;
+uniform float shininess;
 
 // textures
 uniform sampler2D diffuseTexture;
@@ -39,15 +40,14 @@ uniform sampler2D shadowMap;
 uniform samplerCube skybox;
 
 //components
-float ambientStrength = 0.2f;
-float specularStrength = 0.5f;
-float shininess = 52.0f;
+float ambientStrength = 0.45f;
+float specularStrength = 0.75f;
 float ambientStrengthPointLight = 0.8f;
 
 //attenuation of light
-float constant = 0.5f; 
-float linear = 0.0045f; 
-float quadratic = 0.0075f;
+float constant = 1.0f; 
+float linear = 0.09f; 
+float quadratic = 0.032f;
 
 float computeShadow(vec4 fragPosLightSpace) {
 	// perform perspective divide 
@@ -159,35 +159,33 @@ vec3 computeSpotLight(vec3 lightDir, vec3 lightColor, vec4 fragPosLightSpace) {
 	//compute eye space coordinates
     vec4 fPosEye = view * model * vec4(fPosition, 1.0f);
 
-	vec4 fSpotLight = view * model * vec4(spotLightTarget, 1.0f);
+    //compute view direction (in eye coordinates, the viewer is situated at the origin)
+    vec3 viewDirN = normalize(- fPosEye.xyz);
 
 	//normalize light direction
     vec3 lightDirN = vec3(normalize(view * vec4(lightDir, 0.0f)));
 
-    //compute view direction (in eye coordinates, the viewer is situated at the origin)
-    vec3 viewDirN = normalize(- fPosEye.xyz);
+    float theta = dot(lightDirN, normalize(spotLightTarget.xyz - viewDirN));
 
-    float theta = dot(lightDirN, normalize(spotLightTarget.xyz-viewDirN));
+	vec3 color = computeDirLight(lightDir, lightColor, fragPosLightSpace);
 
 	if(theta > cutOffAngle) 
 	{       
-		// the fragment is inside the spotlight's radius
-	  return computeDirLight(lightDir, lightColor, fragPosLightSpace);
+	  return color;
 	}
-	else  
-	  return 0.01 * lightColor;
+	else  {
+	  return 0.05 * color;
+	}
   }
 
 void main() 
 {
 
-	vec3 resultColor = computeSpotLight(lightDir, lightColor, fragPosLightSpace);
+	vec3 resultColor = computeSpotLight(leftPointLightDir, leftPointLightColor, fragPosLightSpaceLeft);
 
-	//resultColor = computeSpotLight(leftPointLightDir, leftPointLightColor, fragPosLightSpaceLeft);
+	resultColor += computeSpotLight(middlePointLightDir, middlePointLightColor, fragPosLightSpaceMiddle);
 
-	//resultColor += computeSpotLight(leftPointLightDir, middlePointLightColor, fragPosLightSpaceMiddle);
-
-	//resultColor += computeSpotLight(rightPointLightDir, rightPointLightColor, fragPosLightSpaceRight);
+	resultColor += computeSpotLight(rightPointLightDir, rightPointLightColor, fragPosLightSpaceRight);
 
     fColor = vec4(resultColor, 1.0f);
 }
