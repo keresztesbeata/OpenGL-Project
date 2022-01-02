@@ -13,8 +13,6 @@
 #include "Model3D.hpp"
 #include "SkyBox.hpp"
 #include "Animation.hpp"
-#include "BounceAnimation.hpp"
-#include "SpinAnimation.hpp"
 #include "LightSource.hpp"
 
 #include <iostream>
@@ -38,15 +36,25 @@ glm::mat3 normalMatrix;
 glm::mat4 lightRotation;
 
 // object's properties
-float ballElasticity = 0.5;
+const float BALL_ELASTICITY = 0.5;
+const float BALL_WEIGHT = 5;
+const float PLAYER_HEIGHT = 10.0; //25.0f;
+const float DIST_FROM_BALL = 50.0f;
+const float MIN_DIST_FROM_BALL = 2.0;
+const float LIGHT_HEIGHT = 40.0f;
+
+const glm::vec3 GOAL1_POSITION = glm::vec3(0,30,-30);
 
 // initial position of objects and camera
-glm::vec3 ballPosition = glm::vec3(0.0f, 5.0f, -10.0f);
-glm::vec3 cameraInitialPosition = glm::vec3(0.0f, 7.0f, 15.0f);
+glm::vec3 ballPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_BALL);
+glm::vec3 initialLightPosition = glm::vec3(0.0, LIGHT_HEIGHT, 1.0);
+
+glm::vec3 moveDirection = ballPosition;
 
 // Animations
 float animationSpeed = 5.0;
-Animation ballAnimation(ballElasticity, ballPosition, animationSpeed);
+Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballPosition, animationSpeed);
 
 // light source
 LightSource * lightSource;
@@ -68,6 +76,7 @@ gps::Camera myCamera(
 
 GLfloat cameraAngle = 90.0f;
 float rollAngle = 0.0;
+float fov = 45.0f;
 // uniform camera movement taking into consideration the frequency of the rendered frames
 GLfloat cameraSpeed = 0.1f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
@@ -126,6 +135,7 @@ void processCameraMovement();
 void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
 glm::mat4 getBallTransformation();
+glm::mat4 getSceneTransformation();
 glm::mat4 getModelForDrawingLightCube();
 
 // render scene of objects
@@ -137,6 +147,7 @@ void windowResizeCallback(GLFWwindow* window, int width, int height);
 void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
 void mouseCallback(GLFWwindow* window, double xpos, double ypos);
 void mousButtonCallback(GLFWwindow* window, int button, int action, int mods);
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 
 // clean-up
 void cleanup();
@@ -214,11 +225,9 @@ void processCameraMovement() {
     }
     if (pressedKeys[GLFW_KEY_Q]) {
         cameraAngle -= 1.0f;
-        model = glm::rotate(glm::mat4(1.0), glm::radians(cameraAngle), glm::vec3(0, 1, 0));
     }
     if (pressedKeys[GLFW_KEY_E]) {
         cameraAngle += 1.0f;
-        model = glm::rotate(glm::mat4(1.0), glm::radians(cameraAngle), glm::vec3(0, 1, 0));
     }
 }
 
@@ -249,9 +258,35 @@ void processLightMovement() {
     }
 }
 
+bool isCloseToBall() {
+    return (abs(myCamera.getCameraPosition().x - ballPosition.x) < MIN_DIST_FROM_BALL) &&
+        (abs(myCamera.getCameraPosition().z - ballPosition.z) < MIN_DIST_FROM_BALL);
+}
+
 void processObjectMovement() {
-    // use left shift for object animation
-    
+
+    moveDirection = glm::vec3(myCamera.getViewMatrix() * glm::vec4(moveDirection,1.0));
+    moveDirection.y = ballPosition.y;
+
+    // if (isCloseToBall()) {
+    // std::cout << "you can pick up the ball" << std::endl;
+    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
+        // pick up the ball from the ground
+        ballPosition.y = PLAYER_HEIGHT;
+        ballPosition.z = -30;
+        myCamera.setCameraTarget(ballPosition);
+        return;
+    }
+
+    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_T]) {
+        // pick up the ball from the ground
+        ballAnimation.setInitialPosition(ballPosition); 
+        ballAnimation.setThrowAngle(30);
+        ballAnimation.setTargetPosition(GOAL1_POSITION);
+        ballAnimation.startAnimation(THROW_ANIMATION);
+        return;
+    }
+
     //start a new animation
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
         // bounce
@@ -263,6 +298,13 @@ void processObjectMovement() {
         // spin
         ballAnimation.setInitialPosition(ballPosition);
         ballAnimation.startAnimation(SPIN_ANIMATION);
+        return;
+    }
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_R]) {
+        // roll
+        ballAnimation.setInitialPosition(ballPosition);
+        ballAnimation.setTargetPosition(moveDirection);
+        ballAnimation.startAnimation(ROLL_ANIMATION);
         return;
     }
     if (ballAnimation.isAnimationPlaying()) {
@@ -298,6 +340,9 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
     // compute normal matrix
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+    // send projection matrix to shader
+    projection = glm::perspective(glm::radians(fov),(float)retina_width/(float)retina_height,0.1f, 1000.0f);
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
     //send normal matrix data to shader
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
     // send light dir to shader
@@ -309,24 +354,34 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection) {
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+    projection = glm::perspective(glm::radians(fov), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 }
 
 glm::mat4 getBallTransformation() {
-    return glm::translate(glm::mat4(1.0), 1.0f * ballPosition);
+    glm::mat4 ballTransformation = glm::mat4(1.0);
+    ballTransformation = glm::translate(ballTransformation, 1.0f * ballPosition);
+    return ballTransformation;
+}
+
+glm::mat4 getSceneTransformation() {
+    glm::mat4 sceneTransformation = glm::mat4(1.0);
+    sceneTransformation = glm::rotate(sceneTransformation, glm::radians(cameraAngle), glm::vec3(0, 1, 0));
+    return sceneTransformation;
 }
 
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
-    // draw teapot
+    // draw ball
     glm::mat4 ballTransformation = getBallTransformation();
     if (ballAnimation.isAnimationPlaying()) {
         ballTransformation = ballTransformation * ballAnimation.getTransformationMatrix();
     }
     updateUniforms(shader, ballTransformation * model, depthPass);
     basketBall.Draw(shader);
+    glm::mat4 sceneTransformation = getSceneTransformation();
     // animate only the object, not the ground
-    updateUniforms(shader, model, depthPass);
+    updateUniforms(shader, sceneTransformation * model, depthPass);
     basketBallCourt.Draw(shader);
 }
 
@@ -359,7 +414,7 @@ void renderScene() {
     // final scene rendering pass (with shadows)
     glViewport(0, 0, retina_width, retina_height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
+
     //bind the shadow map
     basicShader.useShaderProgram();
     glActiveTexture(GL_TEXTURE3);
@@ -376,7 +431,7 @@ void renderScene() {
 
 void initModels() {
     basketBall.LoadModel("models/basketball/basketball.obj","models/basketball/");
-    lightCube.LoadModel("models/bloom_light/bloom_light.obj","models/bloom_light");
+    lightCube.LoadModel("models/cube/cube.obj");
     basketBallCourt.LoadModel("models/basketball_court/basketball_court.obj", "models/basketball_court/");
 }
 
@@ -398,8 +453,8 @@ void initShaders() {
 void initUniforms(gps::Shader shader) {
     shader.useShaderProgram();
 
-    // create model matrix for teapot
-    model = glm::rotate(glm::mat4(1.0f), glm::radians(cameraAngle), glm::vec3(0.0f, 1.0f, 0.0f));
+    // create model matrix 
+    model = glm::mat4(1.0f);
     modelLoc = glGetUniformLocation(shader.shaderProgram, "model");
 
     // get view matrix for current camera
@@ -408,12 +463,12 @@ void initUniforms(gps::Shader shader) {
     // send view matrix to shader
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 
-    // compute normal matrix for teapot
+    // compute normal matrix 
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
     normalMatrixLoc = glGetUniformLocation(shader.shaderProgram, "normalMatrix");
 
     // create projection matrix
-    projection = glm::perspective(glm::radians(45.0f),
+    projection = glm::perspective(glm::radians(fov),
         (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
         0.1f, 1000.0f);
     projectionLoc = glGetUniformLocation(shader.shaderProgram, "projection");
@@ -445,12 +500,11 @@ void initUniforms(gps::Shader shader) {
 
 // must be called before initUniforms()!!!
 void initLightSources() {
-    //set the light direction (direction towards the light = position o flight source)
-    glm::vec3 lightDir = glm::vec3(0.0f, 5.0f, 1.0f);
+    //set the light direction (direction towards the light = position o flight sources
     //set light color => white light
     glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
 
-    lightSource = new LightSource(lightDir, lightColor);
+    lightSource = new LightSource(initialLightPosition, lightColor);
 }
 
 void initFBO() {
@@ -519,6 +573,15 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
 
 void mousButtonCallback(GLFWwindow* window, int button, int action, int mods) {
     allowMouseMovements = button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS;
+}
+
+void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+    fov -= (float)yoffset;
+    if (fov < 1.0f)
+        fov = 1.0f;
+    if (fov > 45.0f)
+        fov = 45.0f;
 }
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
@@ -600,6 +663,7 @@ void setWindowCallbacks() {
     glfwSetKeyCallback(myWindow.getWindow(), keyboardCallback);
     glfwSetCursorPosCallback(myWindow.getWindow(), mouseCallback);
     glfwSetMouseButtonCallback(myWindow.getWindow(), mousButtonCallback);
+    glfwSetScrollCallback(myWindow.getWindow(), scrollCallback);
 }
 
 void initOpenGLState() {
