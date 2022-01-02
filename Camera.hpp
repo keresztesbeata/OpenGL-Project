@@ -20,6 +20,7 @@ namespace gps {
         glm::mat4 getViewMatrix();
         glm::vec3 getCameraPosition();
         glm::vec3 getCameraTarget();
+        glm::vec3 getCameraFrontDirection();
         void setCameraPosition(glm::vec3 newCameraPosition);
         void setCameraTarget(glm::vec3 newCameraTarget);
         void setCameraSpeed(float speed);

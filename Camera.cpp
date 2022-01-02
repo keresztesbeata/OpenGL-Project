@@ -20,6 +20,10 @@ namespace gps {
     glm::vec3 Camera::getCameraPosition() {
         return this->cameraPosition;
     }
+
+    glm::vec3 Camera::getCameraFrontDirection() {
+        return this->cameraFrontDirection;
+    }
     // get the camera target
     glm::vec3 Camera::getCameraTarget() {
         return this->cameraTarget;

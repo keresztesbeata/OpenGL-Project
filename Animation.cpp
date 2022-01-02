@@ -42,11 +42,11 @@ void Animation::setTransformationMatrix(glm::mat4 newTransformationMatrix) {
 
 void Animation::setInitialPosition(glm::vec3 newPosition) {
 	this->initialPosition = newPosition;
-	this->currentPosition = this->initialPosition;
+	this->currentPosition = newPosition;
 }
 
 void Animation::setTargetPosition(glm::vec3 newPosition) {
-	this->targetPosition = this->targetPosition;
+	this->targetPosition = newPosition;
 }
 
 void Animation::setAnimationSpeed(float speed) {
@@ -78,6 +78,10 @@ void Animation::startAnimation(ANIMATION_TYPE animationType) {
 	this->currentAnimation = animationType;
 	this->transformationMatrix = glm::mat4(1.0);
 	this->animationStartTime = glfwGetTime();
+
+	printVector(targetPosition);
+
+
 	playAnimation();
 }
 
@@ -99,13 +103,13 @@ void Animation::playAnimation() {
 			break;
 		}
 		case THROW_ANIMATION: {
+			//printVector(targetPosition);
 			throwBall(throwAngle,targetPosition);
 			break;
 		}
 		case ROLL_ANIMATION: {
-			//printVector(targetPosition);
-			//roll(targetPosition);
-			roll(glm::vec3(-10.4, 1, 0));
+			printVector(targetPosition);
+			roll(targetPosition);
 			break;
 		}
 		default: break;
@@ -180,14 +184,28 @@ void Animation::roll(glm::vec3 direction) {
 }
 
 void Animation::throwBall(float angle, glm::vec3 throwDirection) {
+	float inc = 0.01;
 	glm::vec3 prevPosition = currentPosition;
-	//currentPosition += glm::vec3(0, 1.0, -0.1);
-	transformationMatrix = glm::translate(transformationMatrix, glm::vec3(0, 1.0, 0) + currentPosition);
-	//currentPosition.z = currentPosition.z - 0.1;
-	float distToTarget = glm::length(initialPosition - targetPosition) / 2;
-	currentPosition.y = ellipsesEquation(distToTarget, distToTarget, glm::vec2(distToTarget, currentPosition.y), currentPosition.z);
-	std::cout << "x,y=" << currentPosition.x << "," << currentPosition.y << std::endl;
-	transformationMatrix = glm::translate(transformationMatrix, -prevPosition + currentPosition);
+	printVector(currentPosition);
+	if (currentPosition.x > throwDirection.x / 2) {
+		inc *= -1;
+	}
+	if (currentPosition.y + inc <= 0) {
+		animationPlaying = false;
+		std::cout << "stop" << std::endl;
+		return;
+	}
+	glm::vec3 center = 0.5f * (throwDirection + initialPosition);
+	std::cout << "center = " << std::endl;
+	printVector(center);
+	float posX = currentPosition.x + 0.1;
+	float a = glm::length(initialPosition - throwDirection) / 2;
+	float b = abs(throwDirection.y - initialPosition.y);
+	std::cout << "a=" << a << ", b = " << b << std::endl;
+	float posY = ellipsesEquation(a, b, center, posX);
+	std::cout << "posY = " << posY << std::endl;
+	this->transformationMatrix = glm::translate(this->transformationMatrix, glm::vec3(0.1,-prevPosition.y + posY, 0));
+	this->currentPosition = glm::vec3(posX, posY, 0);
 }
 
 /* helper functions */
@@ -198,9 +216,9 @@ float ellipsesEquation(float a, float b, glm::vec2 center, float x) {
 	float x2 = (x - center.x) * (x - center.x);
 	float y = sqrt(b2 - x2 * b2/a2);
 	if (x < center.x) {
-		return -y + center.y;
+		return y + center.y;
 	}
-	return y + center.y;
+	return -y + center.y;
 }
 
 float dampedOscillation(float amplitude, float dampingFactor, float oscillationFrequency, float time) {

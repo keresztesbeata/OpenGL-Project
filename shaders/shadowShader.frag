@@ -16,7 +16,12 @@ uniform vec3 cameraPos;
 
 //lighting
 uniform vec3 lightDir;
+uniform vec3 lightTarget;
 uniform vec3 lightColor;
+uniform float ambientStrength;
+uniform float specularStrength;
+uniform float shininess;
+uniform float cutOffAngle;
 
 // textures
 uniform sampler2D diffuseTexture;
@@ -28,11 +33,8 @@ uniform samplerCube skybox;
 
 //components
 vec3 ambient;
-float ambientStrength = 0.2f;
 vec3 diffuse;
 vec3 specular;
-float specularStrength = 0.5f;
-float shininess = 32.0f;
 
 void computeDirLight()
 {
@@ -85,12 +87,14 @@ float computeShadow() {
 
 void main() 
 {
-    computeDirLight();
-    float shadow = computeShadow();
 
-    //compute final vertex color 
-    vec3 color = min((ambient + (1.0 - shadow) * diffuse) * texture(diffuseTexture, fTexCoords).rgb + (1.0 - shadow) * specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
-    
-    //vec3 color = refractedColor;
-    fColor = vec4(color, 1.0f);
+   // do lighting calculations
+   computeDirLight();
+
+   float shadow = computeShadow();
+   
+   //compute final vertex color 
+   vec3 color  = min((ambient + (1.0 - shadow) * diffuse) * texture(diffuseTexture, fTexCoords).rgb + (1.0 - shadow) * specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
+
+   fColor = vec4(color, 1.0f);
 }
