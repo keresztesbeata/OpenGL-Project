@@ -6,10 +6,8 @@ LightSource::LightSource(glm::vec3 lightPosition, glm::vec3 lightTarget, glm::ve
     this->lightPosition = lightPosition;
     this->lightDir = lightTarget - lightPosition;
 	this->lightColor = lightColor;
-    this->cutOffAngle = 180;
     this->ambientStrength = 1.0;
-    this->specularStrength = 0.0;
-    this->shininess = 0.0;
+    this->specularStrength = 1.0;
 }
 void LightSource::setTransformationMatrix(glm::mat4 newTransformationMatrix) {
     this->transformationMatrix = newTransformationMatrix;
@@ -28,10 +26,6 @@ void LightSource::setLightColor(glm::vec3 lightColor) {
 	this->lightColor = lightColor;
 }
 
-void LightSource::setCutOffAngle(float cutOffAngle) {
-    this->cutOffAngle = cutOffAngle;
-}
-
 glm::mat4 LightSource::getTransformationMatrix() {
     return this->transformationMatrix;
 }
@@ -46,18 +40,11 @@ glm::vec3 LightSource::getLightColor() {
 	return this->lightColor;
 }
 
-float LightSource::getCutOffAngle() {
-    return this->cutOffAngle;
-}
-
 float LightSource::getAmbientStrength() {
     return this->ambientStrength;
 }
 float LightSource::getSpecularStrength() {
     return this->specularStrength;
-}
-float LightSource::getShininess() {
-    return this->shininess;
 }
 
 glm::vec3 LightSource::getLightTarget() {
@@ -74,10 +61,9 @@ glm::mat4 LightSource::computeLightSpaceTrMatrix() {
     return lightSpaceTrMatrix;
 }
 
-void LightSource::setLightAttributes(float ambientStrength, float specularStrength, float shininess) {
+void LightSource::setLightAttributes(float ambientStrength, float specularStrength) {
     this->ambientStrength = ambientStrength;
     this->specularStrength = specularStrength;
-    this->shininess = shininess;
 }
 
 void LightSource::move(gps::MOVE_DIRECTION direction) {

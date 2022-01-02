@@ -10,8 +10,7 @@ public:
     void setLightPosition(glm::vec3 lightPosition);
     void setLightTarget(glm::vec3 lightTarget);
     void setLightColor(glm::vec3 lightColor);
-    void setCutOffAngle(float cutOffAngle);
-    void setLightAttributes(float ambientStrength, float specularStrength, float shininess);
+    void setLightAttributes(float ambientStrength, float specularStrength);
     glm::mat4 getTransformationMatrix();
     glm::vec3 getLightDir();
     glm::vec3 getLightColor();
@@ -19,8 +18,6 @@ public:
     glm::vec3 getLightPosition();
     float getAmbientStrength();
     float getSpecularStrength();
-    float getShininess();
-    float getCutOffAngle();
     void move(gps::MOVE_DIRECTION direction);
     glm::mat4 computeLightSpaceTrMatrix();
 
@@ -35,7 +32,5 @@ private:
     glm::vec3 lightColor;
     float ambientStrength;
     float specularStrength;
-    float shininess;
-    float cutOffAngle; // for spotlight
 };
 

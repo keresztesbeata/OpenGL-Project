@@ -38,40 +38,44 @@ glm::mat4 lightRotation;
 // object's properties
 const float BALL_ELASTICITY = 0.5;
 const float BALL_WEIGHT = 5;
-const float PLAYER_HEIGHT = 10.0f;
-const float GOAL_HEIGHT = 20.0f;
-const float DIST_FROM_GOAL = 60.0f;
-const float THROW_DISTANCE = 30.0f;
-const float DIST_FROM_BALL = 10.0f;
+const float PLAYER_HEIGHT = 10.0; //25.0f;
+const float DIST_FROM_BALL = 50.0f;
 const float MIN_DIST_FROM_BALL = 2.0;
-const float LIGHT_HEIGHT = 20.0f;
+const float LIGHT_HEIGHT = 10.0f;
+const float GLOBAL_LIGHT_HEIGHT = 20.0f;
 
+const glm::vec3 RED_COLOUR = glm::vec3(1, 0, 0);
+const glm::vec3 GREEN_COLOUR = glm::vec3(0, 1, 0);
+const glm::vec3 BLUE_COLOUR = glm::vec3(0, 0, 1);
+const glm::vec3 WHITE_COLOUR = glm::vec3(1, 1, 1);
 
-// light sources
-LightSource* lightSource;
-LightSource* flashLight;
-
-float ambientStrength = 0.2f;
-float specularStrength = 0.5f;
-float shininess = 32.0f;
-float cutOffAngle = 10.5f;
-
-const glm::vec3 GOAL1_POSITION = glm::vec3(0, GOAL_HEIGHT, -DIST_FROM_GOAL);
-const glm::vec3 THROW1_POSITION = glm::vec3(0, PLAYER_HEIGHT, -THROW_DISTANCE);
+const glm::vec3 GOAL1_POSITION = glm::vec3(0, 30, -30);
 
 // initial position of objects and camera
 glm::vec3 ballPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, 3*DIST_FROM_BALL);
-glm::vec3 initialLightPosition = glm::vec3(0.0, LIGHT_HEIGHT, 1.0);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_BALL);
+glm::vec3 initialLightPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT, 1.0);
+
+glm::vec3 initialPointLightMiddlePosition = glm::vec3(0.0, LIGHT_HEIGHT, 1.0);
+glm::vec3 initialPointLightLeftPosition = glm::vec3(-10.0, LIGHT_HEIGHT/2, 1.0);
+glm::vec3 initialPointLightRightPosition = glm::vec3(10.0, LIGHT_HEIGHT/2, 1.0);
+
+
+// defines the radius for spotlights
+float cutOffAngle = 10.0;
+glm::vec3 spotLightTarget = ballPosition;
 
 glm::vec3 moveDirection = ballPosition;
-
-bool isBallPickedUp = false;
 
 // Animations
 float animationSpeed = 5.0;
 Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballPosition, animationSpeed);
 
+// light sources
+LightSource* lightSource;
+LightSource* pointLightMiddle;
+LightSource* pointLightLeft;
+LightSource* pointLightRight;
 
 // shader uniform locations
 GLint modelLoc;
@@ -79,13 +83,10 @@ GLint viewLoc;
 GLint projectionLoc;
 GLint normalMatrixLoc;
 GLint lightDirLoc;
-GLint lightTargetLoc;
 GLint lightColorLoc;
-GLint ambientStrengthLoc;
-GLint specularStrengthLoc; 
-GLint shininessLoc;
-GLint cutOffLoc;
+GLint cutOffAngleLoc;
 GLint cameraPosLoc;
+GLint spotLightTargetLoc;
 
 // camera
 gps::Camera myCamera(
@@ -97,7 +98,7 @@ GLfloat cameraAngle = 90.0f;
 float rollAngle = 0.0;
 float fov = 45.0f;
 // uniform camera movement taking into consideration the frequency of the rendered frames
-GLfloat cameraSpeed = 1.0f;
+GLfloat cameraSpeed = 0.1f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
@@ -105,8 +106,11 @@ GLboolean pressedKeys[1024];
 
 // models
 gps::Model3D basketBall;
-gps::Model3D lightCube;
 gps::Model3D basketBallCourt;
+gps::Model3D lightCube;
+gps::Model3D middleLight;
+gps::Model3D leftLight;
+gps::Model3D rightLight;
 
 // skybox
 std::vector<const GLchar*> faces;
@@ -115,7 +119,6 @@ gps::SkyBox mySkyBox;
 // shaders
 gps::Shader basicShader;
 gps::Shader lightShader;
-gps::Shader flashLightShader;
 gps::Shader depthMapShader;
 gps::Shader skyboxShader;
 
@@ -132,7 +135,7 @@ float pitch = 0.0f, yaw = -90.0f;
 float angleX = 0.0f, angleY = 0.0f;
 float mouseSensitivity = 0.1f;
 bool firstMouseMovement = true;
-bool setThrowAngleWithMouse = false;
+bool allowMouseMovements = false;
 
 // initialize window, matrices and shaders, and add callbacks 
 void initOpenGLWindow();
@@ -156,7 +159,7 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
 void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4 view, glm::mat4 projection);
 glm::mat4 getBallTransformation();
 glm::mat4 getSceneTransformation();
-glm::mat4 getModelForDrawingLightCube();
+glm::mat4 getModelForDrawingLightCube(glm::vec3 lightDir);
 
 // render scene of objects
 void renderScene();
@@ -249,33 +252,45 @@ void processCameraMovement() {
     if (pressedKeys[GLFW_KEY_E]) {
         cameraAngle += 1.0f;
     }
-    //std::cout << myCamera.getCameraFrontDirection().x << "," << myCamera.getCameraFrontDirection().y << "," << myCamera.getCameraFrontDirection().z << std::endl;
 }
 
 void processLightMovement() {
+    LightSource* selectedLight = lightSource;
+    if (pressedKeys[GLFW_KEY_0]) {
+        selectedLight = lightSource;
+    }
+    if (pressedKeys[GLFW_KEY_1]) {
+        selectedLight = pointLightLeft;
+    }
+    if (pressedKeys[GLFW_KEY_2]) {
+        selectedLight = pointLightMiddle;
+    }
+    if (pressedKeys[GLFW_KEY_3]) {
+        selectedLight = pointLightRight;
+    }
     if (pressedKeys[GLFW_KEY_J]) {
-       lightSource->move(gps::MOVE_LEFT);
+        selectedLight->move(gps::MOVE_LEFT);
     }
     if (pressedKeys[GLFW_KEY_L]) {
-        lightSource->move(gps::MOVE_RIGHT);
+        selectedLight->move(gps::MOVE_RIGHT);
     }
     if (pressedKeys[GLFW_KEY_I]) {
-        lightSource->move(gps::MOVE_UP);
+        selectedLight->move(gps::MOVE_UP);
     }
     if (pressedKeys[GLFW_KEY_K]) {
-        lightSource->move(gps::MOVE_DOWN);
+        selectedLight->move(gps::MOVE_DOWN);
     }
     if (pressedKeys[GLFW_KEY_U]) {
-        lightSource->move(gps::ROTATE_CLOCKWISE);
+        selectedLight->move(gps::ROTATE_CLOCKWISE);
     }
     if (pressedKeys[GLFW_KEY_O]) {
-        lightSource->move(gps::ROTATE_COUNTER_CLOCKWISE);
+        selectedLight->move(gps::ROTATE_COUNTER_CLOCKWISE);
     }
     if (pressedKeys[GLFW_KEY_H]) {
-        lightSource->move(gps::MOVE_FORWARD);
+        selectedLight->move(gps::MOVE_FORWARD);
     }
     if (pressedKeys[GLFW_KEY_N]) {
-        lightSource->move(gps::MOVE_BACKWARD);
+        selectedLight->move(gps::MOVE_BACKWARD);
     }
 }
 
@@ -286,26 +301,22 @@ bool isCloseToBall() {
 
 void processObjectMovement() {
 
-    moveDirection = glm::vec3(myCamera.getViewMatrix() * glm::vec4(moveDirection,1.0));
+    moveDirection = glm::vec3(myCamera.getViewMatrix() * glm::vec4(moveDirection, 1.0));
     moveDirection.y = ballPosition.y;
 
     // if (isCloseToBall()) {
     // std::cout << "you can pick up the ball" << std::endl;
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
         // pick up the ball from the ground
-        ballPosition.x = 0;
         ballPosition.y = PLAYER_HEIGHT;
-        myCamera.setCameraPosition(THROW1_POSITION);
-        myCamera.setCameraTarget(GOAL1_POSITION);
-        isBallPickedUp = true;
+        ballPosition.z = -30;
+        myCamera.setCameraTarget(ballPosition);
         return;
     }
 
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_T]) {
         // pick up the ball from the ground
-        // position player with ball in front of the goal 
-        ballPosition.z = THROW1_POSITION.z - DIST_FROM_BALL;
-        ballAnimation.setInitialPosition(ballPosition); 
+        ballAnimation.setInitialPosition(ballPosition);
         ballAnimation.setThrowAngle(30);
         ballAnimation.setTargetPosition(GOAL1_POSITION);
         ballAnimation.startAnimation(THROW_ANIMATION);
@@ -344,9 +355,9 @@ void processObjectMovement() {
     }
 }
 
-glm::mat4 getModelForDrawingLightCube() {
+glm::mat4 getModelForDrawingLightCube(glm::vec3 lightDir) {
     glm::mat4 lightCubeModel = glm::mat4(1.0);
-    lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightSource->getLightDir());
+    lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightDir);
     lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.5f, 0.5f, 0.5f));
     return lightCubeModel;
 }
@@ -355,6 +366,9 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     //send model matrix data to shader
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(lightSource->computeLightSpaceTrMatrix()));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixLeft"), 1, GL_FALSE, glm::value_ptr(pointLightLeft->computeLightSpaceTrMatrix()));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixRight"), 1, GL_FALSE, glm::value_ptr(pointLightRight->computeLightSpaceTrMatrix()));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixMiddle"), 1, GL_FALSE, glm::value_ptr(pointLightMiddle->computeLightSpaceTrMatrix()));
     // do not send the other matrices for the depth map shader
     if (depthPass) {
         return;
@@ -366,18 +380,14 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     // compute normal matrix
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
     // send projection matrix to shader
-    projection = glm::perspective(glm::radians(fov),(float)retina_width/(float)retina_height,0.1f, 1000.0f);
+    projection = glm::perspective(glm::radians(fov), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
     //send normal matrix data to shader
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
     // send light dir to shader
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
-    glUniform3fv(lightTargetLoc, 1, glm::value_ptr(lightSource->getLightTarget()));
-    // sen dlight attributes to shader
-    glUniform1f(ambientStrengthLoc, lightSource->getAmbientStrength());
-    glUniform1f(specularStrengthLoc, lightSource->getSpecularStrength());
-    glUniform1f(shininessLoc, lightSource->getShininess());
-    glUniform1f(cutOffLoc, cos(glm::radians(lightSource->getCutOffAngle())));
+    glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(spotLightTarget));
+    glUniform1f(cutOffAngleLoc, cos(glm::radians(cutOffAngle)));
     // send camera position to shader
     glUniform3fv(cameraPosLoc, 1, glm::value_ptr(myCamera.getCameraPosition()));
 }
@@ -392,10 +402,6 @@ void updateUniformsForGivenShader(gps::Shader shader, glm::mat4 model, glm::mat4
 glm::mat4 getBallTransformation() {
     glm::mat4 ballTransformation = glm::mat4(1.0);
     ballTransformation = glm::translate(ballTransformation, 1.0f * ballPosition);
-    if (isBallPickedUp) {
-        // move camera together with the ball 
-        //ballTransformation = glm::translate(ballTransformation, 1.0f * myCamera.getCameraPosition());
-    }
     return ballTransformation;
 }
 
@@ -407,17 +413,14 @@ glm::mat4 getSceneTransformation() {
 
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
-
-    glm::mat4 sceneTransformation = getSceneTransformation();
-
     // draw ball
     glm::mat4 ballTransformation = getBallTransformation();
     if (ballAnimation.isAnimationPlaying()) {
         ballTransformation = ballTransformation * ballAnimation.getTransformationMatrix();
     }
-    updateUniforms(shader, sceneTransformation * ballTransformation * model, depthPass);
+    updateUniforms(shader, ballTransformation * model, depthPass);
     basketBall.Draw(shader);
-    
+    glm::mat4 sceneTransformation = getSceneTransformation();
     // animate only the object, not the ground
     updateUniforms(shader, sceneTransformation * model, depthPass);
     basketBallCourt.Draw(shader);
@@ -425,8 +428,14 @@ void drawObjects(gps::Shader shader, bool depthPass) {
 
 void drawLightSource(gps::Shader shader) {
     shader.useShaderProgram();
-    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(), myCamera.getViewMatrix(), projection);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(lightSource->getLightDir()), myCamera.getViewMatrix(), projection);
     lightCube.Draw(shader);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightMiddle->getLightDir()), myCamera.getViewMatrix(), projection);
+    middleLight.Draw(shader);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightLeft->getLightDir()), myCamera.getViewMatrix(), projection);
+    leftLight.Draw(shader);
+    updateUniformsForGivenShader(shader, getModelForDrawingLightCube(pointLightRight->getLightDir()), myCamera.getViewMatrix(), projection);
+    rightLight.Draw(shader);
 }
 
 void renderScene() {
@@ -435,13 +444,10 @@ void renderScene() {
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
 
-    // update the light attributes
-    lightSource->setLightAttributes(ambientStrength, specularStrength, shininess);
-    lightSource->setCutOffAngle(cutOffAngle);
     lightSource->setLightPosition(myCamera.getCameraPosition());
     lightSource->setLightTarget(myCamera.getCameraFrontDirection());
-    //lightSource->setLightTarget(ballPosition);
-      
+    spotLightTarget = lightSource->getLightTarget();
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
     float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -455,7 +461,7 @@ void renderScene() {
     drawObjects(depthMapShader, true);
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    
+
     // final scene rendering pass (with shadows)
     glViewport(0, 0, retina_width, retina_height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -466,7 +472,7 @@ void renderScene() {
     glBindTexture(GL_TEXTURE_2D, depthMapTexture);
     glUniform1i(glGetUniformLocation(basicShader.shaderProgram, "shadowMap"), 3);
     drawObjects(basicShader, false);
-    
+
     //draw a white cube around the light
     drawLightSource(lightShader);
 
@@ -475,31 +481,23 @@ void renderScene() {
 }
 
 void initModels() {
-    basketBall.LoadModel("models/basketball/basketball.obj","models/basketball/");
-    lightCube.LoadModel("models/cube/cube.obj");
+    basketBall.LoadModel("models/basketball/basketball.obj", "models/basketball/");
     basketBallCourt.LoadModel("models/basketball_court/basketball_court.obj", "models/basketball_court/");
+    lightCube.LoadModel("models/cube/cube.obj");
+    leftLight.LoadModel("models/cube/cube.obj");
+    rightLight.LoadModel("models/cube/cube.obj");
+    middleLight.LoadModel("models/cube/cube.obj");
 }
 
 void initShaders() {
-    
     basicShader.loadShader(
-        "shaders/flashLightShader.vert",
-        "shaders/flashLightShader.frag");
-    /*
-    basicShader.loadShader(
-        "shaders/shadowShader.vert",
-        "shaders/shadowShader.frag");
-        */
+        "shaders/multipleLightsShader.vert",
+        "shaders/multipleLightsShader.frag");
     lightShader.loadShader(
         "shaders/lightShader.vert",
         "shaders/lightShader.frag");
-   /*
-    flashLightShader.loadShader(
-        "shaders/flashLightShader.vert",
-        "shaders/flashLightShader.frag");
-        */
     depthMapShader.loadShader(
-        "shaders/depthMapShader.vert", 
+        "shaders/depthMapShader.vert",
         "shaders/depthMapShader.frag");
     skyboxShader.loadShader(
         "shaders/skyboxShader.vert",
@@ -535,25 +533,29 @@ void initUniforms(gps::Shader shader) {
     lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
     glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
 
-    // target of spotlight
-    lightTargetLoc = glGetUniformLocation(shader.shaderProgram, "lightTarget");
-    glUniform3fv(lightTargetLoc, 1, glm::value_ptr(lightSource->getLightTarget()));
+    spotLightTargetLoc = glGetUniformLocation(shader.shaderProgram, "spotLightTarget");
+    glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(spotLightTarget));
 
     // send light color to shader
     lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
     glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightSource->getLightColor()));
 
-    ambientStrengthLoc = glGetUniformLocation(shader.shaderProgram, "ambientStrength");
-    glUniform1f(ambientStrengthLoc, lightSource->getAmbientStrength());
+    cutOffAngleLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
+    glUniform1f(cutOffAngleLoc, cos(glm::radians(cutOffAngle)));
 
-    specularStrengthLoc = glGetUniformLocation(shader.shaderProgram, "specularStrength");
-    glUniform1f(specularStrengthLoc, lightSource->getSpecularStrength());
+    // send light dir to shader
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightColor"), 1, glm::value_ptr(pointLightLeft->getLightColor()));
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightColor"), 1, glm::value_ptr(pointLightRight->getLightColor()));
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightColor"), 1, glm::value_ptr(pointLightMiddle->getLightColor()));
 
-    shininessLoc = glGetUniformLocation(shader.shaderProgram, "shininess");
-    glUniform1f(shininessLoc, lightSource->getShininess());
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightDir"), 1, glm::value_ptr(pointLightLeft->getLightDir()));
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightDir"), 1, glm::value_ptr(pointLightRight->getLightDir()));
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightDir"), 1, glm::value_ptr(pointLightMiddle->getLightDir()));
 
-    cutOffLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
-    glUniform1f(cutOffLoc, cos(glm::radians(lightSource->getCutOffAngle())));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(lightSource->computeLightSpaceTrMatrix()));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixLeft"), 1, GL_FALSE, glm::value_ptr(pointLightLeft->computeLightSpaceTrMatrix()));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixRight"), 1, GL_FALSE, glm::value_ptr(pointLightRight->computeLightSpaceTrMatrix()));
+    glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixMiddle"), 1, GL_FALSE, glm::value_ptr(pointLightMiddle->computeLightSpaceTrMatrix()));
 
     cameraPosLoc = glGetUniformLocation(shader.shaderProgram, "cameraPos");
     glUniform3fv(cameraPosLoc, 1, glm::value_ptr(myCamera.getCameraPosition()));
@@ -572,25 +574,13 @@ void initUniforms(gps::Shader shader) {
 
 // must be called before initUniforms()!!!
 void initLightSources() {
-    //set the light direction (direction towards the light = position of light sources
+    //set the light direction (direction towards the light = position o flight sources
     //set light color => white light
-    glm::vec3 lightColor = glm::vec3(1.0f, 1.0f, 1.0f);
-
-    /*
-    lightSource = new LightSource(initialLightPosition, lightColor);
-    lightSource->setLightAttributes(ambientStrength, specularStrength, shininess);
-    lightSource->setCutOffAngle(cutOffAngle);
-    lightSource->setLightTarget(ballPosition);
-
-    flashLight = new LightSource(myCamera.getCameraPosition(), lightColor);
-    flashLight->setLightAttributes(ambientStrength, specularStrength, shininess);
-    flashLight->setCutOffAngle(cutOffAngle);
-    flashLight->setLightTarget(myCamera.getCameraFrontDirection());
-    */
-
-    lightSource = new LightSource(myCamera.getCameraPosition(), myCamera.getCameraFrontDirection(), lightColor);
-    lightSource->setLightAttributes(ambientStrength, specularStrength, shininess);
-    lightSource->setCutOffAngle(cutOffAngle);
+    
+    lightSource = new LightSource(initialLightPosition, ballPosition, WHITE_COLOUR);
+    pointLightMiddle = new LightSource(initialPointLightMiddlePosition, ballPosition, RED_COLOUR);
+    pointLightLeft = new LightSource(initialPointLightLeftPosition, ballPosition, GREEN_COLOUR);
+    pointLightRight = new LightSource(initialPointLightRightPosition, ballPosition, BLUE_COLOUR);
 }
 
 void initFBO() {
@@ -634,7 +624,7 @@ void windowResizeCallback(GLFWwindow* window, int width, int height) {
     }
     glfwGetFramebufferSize(window, &retina_width, &retina_height);
     basicShader.useShaderProgram();
-    
+
     projection = glm::perspective(glm::radians(45.0f), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     projectionLoc = glGetUniformLocation(basicShader.shaderProgram, "projection");
     // send projection matrix to shader
@@ -658,31 +648,33 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
 }
 
 void mousButtonCallback(GLFWwindow* window, int button, int action, int mods) {
-    setThrowAngleWithMouse = button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS;
+    allowMouseMovements = button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS;
 }
 
 void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 {
-   
-    if (pressedKeys[GLFW_KEY_RIGHT_SHIFT]) {
-        // change ambient light intensity
-        ambientStrength += yoffset/100.0;
-        if (ambientStrength < 0) {
-            ambientStrength = 0;
-        }
+    // zoom the camera
+    fov -= (float)yoffset;
+    if (fov < 1.0f)
+        fov = 1.0f;
+    if (fov > 45.0f)
+        fov = 45.0f;
+
+    // change the radius of the flashlight
+    float inc = (yoffset < 0)? 1.0 : -1.0;
+    cutOffAngle += inc;
+    if (cutOffAngle < 0) {
+        cutOffAngle = 0;
     }
-    else {
-        // zoom in or out
-        fov -= (float)yoffset;
-        if (fov < 1.0f)
-            fov = 1.0f;
-        if (fov > 45.0f)
-            fov = 45.0f;
+    else if(cutOffAngle> 45) {
+        cutOffAngle = 45;
     }
 }
 
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
-    
+    if (!(firstMouseMovement || allowMouseMovements)) {
+        return;
+    }
     if (firstMouseMovement) {
         lastX = xpos;
         lastY = ypos;
@@ -697,6 +689,12 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     yoffset *= mouseSensitivity;
     yaw += xoffset;
     pitch += yoffset;
+
+    // the viewer cannot turn his head on 360*, only up until 90* and down until -90*
+    if (pitch > 89.0f)
+        pitch = 89.0f;
+    if (pitch < -89.0f)
+        pitch = -89.0f;
 
     myCamera.rotate(pitch, yaw);
 }
@@ -764,6 +762,4 @@ void initOpenGLState() {
     glEnable(GL_CULL_FACE); // cull face
     glCullFace(GL_BACK); // cull back face
     glFrontFace(GL_CCW); // GL_CCW for counter clock-wise
-
-    //glfwSetInputMode(myWindow.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }

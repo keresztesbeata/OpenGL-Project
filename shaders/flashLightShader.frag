@@ -12,16 +12,10 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 uniform mat3 normalMatrix;
-uniform vec3 cameraPos;
 
 //lighting
 uniform vec3 lightDir;
-uniform vec3 lightTarget;
 uniform vec3 lightColor;
-uniform float ambientStrength;
-uniform float specularStrength;
-uniform float shininess;
-uniform float cutOffAngle;
 
 // textures
 uniform sampler2D diffuseTexture;
