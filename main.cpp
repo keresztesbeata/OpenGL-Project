@@ -38,16 +38,16 @@ glm::mat4 lightRotation;
 // object's properties
 const float BALL_ELASTICITY = 0.5;
 const float BALL_WEIGHT = 5;
-const float PLAYER_HEIGHT = 15.0; //25.0f;
-const float DIST_FROM_BALL = 50.0f;
-const float MIN_DIST_FROM_BALL = 2.0;
-const float LIGHT_HEIGHT = 10.0f;
+const float PLAYER_HEIGHT = 15.0;
+const float DIST_FROM_CENTER_OF_FIELD = 50.0f;
+const glm::vec3 MIN_DIST_FROM_BALL = glm::vec3(0,2,5);
+const float LIGHT_HEIGHT = 20.0f;
 const float GLOBAL_LIGHT_HEIGHT = 20.0f;
 const glm::vec3 GOAL1_POSITION = glm::vec3(0, 30, -30);
 
 // initial position of objects and camera
 glm::vec3 ballPosition = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_BALL);
+glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_CENTER_OF_FIELD);
 glm::vec3 initialLightPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT, 1.0);
 
 // light sources
@@ -73,7 +73,7 @@ glm::vec3 spotLightTarget;
 // Animations
 float animationSpeed = 5.0;
 Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballPosition, animationSpeed);
-glm::vec3 moveDirection = ballPosition;
+bool isBallPickedUp = false; // move ball together with camera when it is picked up by a player
 
 // shaders
 gps::Shader basicShader;
@@ -107,6 +107,11 @@ gps::Camera myCamera(
 GLfloat cameraAngle = 90.0f;
 float rollAngle = 0.0;
 float fov = 45.0f;
+float pitch = 0.0f, yaw = -90.0f;
+
+const float THROW_PITCH_OFFSET = 30;
+const float THROW_YAW_OFFSET = 90;
+
 // uniform camera movement taking into consideration the frequency of the rendered frames
 GLfloat cameraSpeed = 0.1f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
@@ -136,8 +141,6 @@ GLenum glCheckError_(const char* file, int line);
 
 // attributes for updating the mouse coordinates within the screen frame
 float lastX = myWindowWidth / 2, lastY = myWindowWidth / 2;
-float pitch = 0.0f, yaw = -90.0f;
-float angleX = 0.0f, angleY = 0.0f;
 float mouseSensitivity = 0.1f;
 bool firstMouseMovement = true;
 bool allowMouseMovements = false;
@@ -166,6 +169,7 @@ void selectShader();
 // functions for updating the transformation matrices after the camera or the object has moved
 void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
 void updateCommonUniformsForShader(gps::Shader shader, glm::mat4 model);
+glm::vec3 getMoveDirection();
 glm::mat4 getBallTransformation();
 glm::mat4 getSceneTransformation();
 glm::mat4 getModelForDrawingLightCube(LightSource* lightSource);
@@ -320,29 +324,45 @@ void processLightMovement() {
 }
 
 bool isCloseToBall() {
-    return (abs(myCamera.getCameraPosition().x - ballPosition.x) < MIN_DIST_FROM_BALL) &&
-        (abs(myCamera.getCameraPosition().z - ballPosition.z) < MIN_DIST_FROM_BALL);
+    // height doesn't count: player can pick up the ball when he gets close enough to it
+    return (abs(myCamera.getCameraPosition().x - ballPosition.x) < MIN_DIST_FROM_BALL.x) &&
+        (abs(myCamera.getCameraPosition().z - ballPosition.z) < MIN_DIST_FROM_BALL.z);
+}
+
+glm::vec3 getMoveDirection() {
+    glm::vec3 moveDirection = glm::vec3(1,0,0); // x axis = glm::normalize(ballPosition - GOAL1_POSITION) = x axis
+    glm::mat4 moveTransformation = glm::mat4(1.0);
+    moveTransformation = glm::translate(moveTransformation, -ballPosition);
+    moveTransformation = glm::rotate(moveTransformation, yaw, glm::vec3(1, 0, 0));
+    moveTransformation = glm::translate(moveTransformation, ballPosition);
+    moveDirection = glm::vec3(moveTransformation * glm::vec4(moveDirection, 1.0));
+    return moveDirection;
 }
 
 void processObjectMovement() {
-
-    moveDirection = glm::vec3(myCamera.getViewMatrix() * glm::vec4(moveDirection, 1.0));
-    moveDirection.y = ballPosition.y;
 
     // if (isCloseToBall()) {
     // std::cout << "you can pick up the ball" << std::endl;
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
         // pick up the ball from the ground
-        ballPosition.y = PLAYER_HEIGHT;
+        isBallPickedUp = true;
+        ballPosition = myCamera.getCameraPosition() - MIN_DIST_FROM_BALL;
         myCamera.setCameraTarget(ballPosition);
         return;
     }
 
-    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_T]) {
-        // pick up the ball from the ground
-        ballPosition.z = -30;
+    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_D]) {
+        // drop the ball => start bouncing
+        isBallPickedUp = false;
         ballAnimation.setInitialPosition(ballPosition);
-        ballAnimation.setThrowAngle(30);
+        ballAnimation.startAnimation(BOUNCE_ANIMATION);
+        return;
+    }
+
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_T] && isBallPickedUp) {
+        // throw the ball if it was previously picked up
+        ballAnimation.setInitialPosition(ballPosition);
+        ballAnimation.setThrowAngles(pitch + THROW_PITCH_OFFSET,yaw + THROW_YAW_OFFSET);
         ballAnimation.setTargetPosition(GOAL1_POSITION);
         ballAnimation.startAnimation(THROW_ANIMATION);
         return;
@@ -364,7 +384,8 @@ void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_R]) {
         // roll
         ballAnimation.setInitialPosition(ballPosition);
-        ballAnimation.setTargetPosition(moveDirection);
+        glm::vec3 rollDirection = getMoveDirection();
+        ballAnimation.setTargetPosition(rollDirection);
         ballAnimation.startAnimation(ROLL_ANIMATION);
         return;
     }
@@ -779,11 +800,14 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     yaw += xoffset;
     pitch += yoffset;
 
-    // the viewer cannot turn his head on 360*, only up until 90* and down until -90*
-    if (pitch > 89.0f)
-        pitch = 89.0f;
-    if (pitch < -89.0f)
-        pitch = -89.0f;
+    // the viewer cannot turn his head on 360*, only up until 180* and down until -180*
+    if (pitch > 180.0f)
+        pitch = 180.0f;
+    if (pitch < -180.0f)
+        pitch = -180.0f;
+        
+    //todo: delete
+    std::cout << "(p,y)="<<pitch << "," << yaw << std::endl;
 
     myCamera.rotate(pitch, yaw);
 }

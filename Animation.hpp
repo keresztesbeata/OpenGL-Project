@@ -20,7 +20,7 @@ public:
 	void setTargetPosition(glm::vec3 newPosition);
 	void setAnimationSpeed(float speed);
 	void setElasticity(float elasticity);
-	void setThrowAngle(float throwAngle);
+	void setThrowAngles(float pitch, float yaw);
 	// getters for querying the animation's state
 	glm::mat4 getTransformationMatrix();
 	glm::vec3 getCurrentPosition();
@@ -31,7 +31,7 @@ public:
 	void stopAnimation();
 	virtual void playAnimation();
 
-	void moveBall();
+	void moveBall(glm::vec3 playerPosition);
 
 private:
 	glm::mat4 transformationMatrix;
@@ -49,7 +49,7 @@ private:
 	float elasticity;
 	float weight;
 	glm::vec3 spinAxis;
-	float throwAngle;
+	float throwPitch, throwYaw;
 
 	// constants
 	const float UNIT_STEP = 0.01; 
@@ -59,13 +59,15 @@ private:
 	void bounce(float initialHeight);
 	void spin(glm::vec3 axis);
 	void roll(glm::vec3 direction);
-	void throwBall(float angle, glm::vec3 throwDirection);
+	void throwBall(float pitch, float yaw);
 
 	void initAnimation(float elasticity, float weight, glm::vec3 initialPosition, float animationSpeed);
 
 	// animation constants
 	const float MIN_BOUNCE = 0.0001;
 	const float BOUNCE_HEIGHT = 100.0;
+	const float THROW_HEIGHT = 5.0;
+	const float THROW_OFFSET = 5.0;
 	const float MAX_DAMPING = 0.001;
 };
 
