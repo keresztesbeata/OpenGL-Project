@@ -4,9 +4,6 @@ in vec3 fPosition;
 in vec3 fNormal;
 in vec2 fTexCoords;
 in vec4 fragPosLightSpace;
-in vec4 fragPosLightSpaceLeft;
-in vec4 fragPosLightSpaceRight;
-in vec4 fragPosLightSpaceMiddle;
 
 out vec4 fColor;
 
@@ -14,16 +11,6 @@ out vec4 fColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat3 normalMatrix;
-uniform vec3 cameraPos;
-
-uniform vec3 leftPointLightDir;
-uniform vec3 leftPointLightColor;
-
-uniform vec3 rightPointLightDir;
-uniform vec3 rightPointLightColor;
-
-uniform vec3 middlePointLightDir;
-uniform vec3 middlePointLightColor;
 
 uniform vec3 lightDir;
 uniform vec3 lightColor;
@@ -43,11 +30,6 @@ float ambientStrength = 0.45f;
 float specularStrength = 0.75f;
 float ambientStrengthPointLight = 0.8f;
 float shininess = 32.0f;
-
-//attenuation of light
-float constant = 1.0f; 
-float linear = 0.09f; 
-float quadratic = 0.032f;
 
 float computeShadow(vec4 fragPosLightSpace) {
 	// perform perspective divide 

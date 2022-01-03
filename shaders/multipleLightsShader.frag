@@ -14,7 +14,6 @@ out vec4 fColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat3 normalMatrix;
-uniform vec3 cameraPos;
 
 uniform vec3 leftPointLightDir;
 uniform vec3 leftPointLightColor;
@@ -155,37 +154,14 @@ vec3 computePointLight(vec3 lightDir, vec3 lightColor, vec4 fragPosLightSpace)
 	return color;
 }
 
-vec3 computeSpotLight(vec3 lightDir, vec3 lightColor, vec4 fragPosLightSpace) {
-	//compute eye space coordinates
-    vec4 fPosEye = view * model * vec4(fPosition, 1.0f);
-
-    //compute view direction (in eye coordinates, the viewer is situated at the origin)
-    vec3 viewDirN = normalize(- fPosEye.xyz);
-
-	//normalize light direction
-    vec3 lightDirN = vec3(normalize(view * vec4(lightDir, 0.0f)));
-
-    float theta = dot(lightDirN, normalize(spotLightTarget.xyz - viewDirN));
-
-	vec3 color = computeDirLight(lightDir, lightColor, fragPosLightSpace);
-
-	if(theta > cutOffAngle) 
-	{       
-	  return color;
-	}
-	else  {
-	  return 0.05 * color;
-	}
-  }
-
 void main() 
 {
 
-	vec3 resultColor = computeSpotLight(leftPointLightDir, leftPointLightColor, fragPosLightSpaceLeft);
+	vec3 resultColor = computePointLight(leftPointLightDir, leftPointLightColor, fragPosLightSpaceLeft);
 
-	resultColor += computeSpotLight(middlePointLightDir, middlePointLightColor, fragPosLightSpaceMiddle);
+	resultColor += computePointLight(middlePointLightDir, middlePointLightColor, fragPosLightSpaceMiddle);
 
-	resultColor += computeSpotLight(rightPointLightDir, rightPointLightColor, fragPosLightSpaceRight);
+	resultColor += computePointLight(rightPointLightDir, rightPointLightColor, fragPosLightSpaceRight);
 
     fColor = vec4(resultColor, 1.0f);
 }
