@@ -79,9 +79,9 @@ void Animation::startAnimation(ANIMATION_TYPE animationType) {
 	this->transformationMatrix = glm::mat4(1.0);
 	this->animationStartTime = glfwGetTime();
 
-	printVector(targetPosition);
-
-
+	//todo:delete
+	//printVector(targetPosition);
+	
 	playAnimation();
 }
 
@@ -121,7 +121,7 @@ void Animation::playAnimation() {
 void Animation::bounce(float initialHeight) {
 	float dampingFactor = 1.0 - elasticity;
 	float elapsedTime = glfwGetTime() - animationStartTime;
-	float amplitude = initialHeight * (1.0 - dampingFactor);
+	float amplitude = initialHeight * BOUNCE_HEIGHT * (1.0 - dampingFactor);
 	double oscillation = dampedOscillation(amplitude, dampingFactor, animationSpeed, elapsedTime);
 	float prevY = currentPosition.y;
 	float posY = UNIT_STEP * abs(oscillation);
@@ -130,6 +130,7 @@ void Animation::bounce(float initialHeight) {
 		posY = 0;
 	}
 	currentPosition.y = posY;
+	printVector(currentPosition);
 	transformationMatrix = glm::translate(glm::mat4(1.0), glm::vec3(0.0, posY, 0.0));
 }
 

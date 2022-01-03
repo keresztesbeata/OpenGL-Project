@@ -14,6 +14,7 @@ out vec4 fColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat3 normalMatrix;
+uniform vec3 cameraPos;
 
 uniform vec3 leftPointLightDir;
 uniform vec3 leftPointLightColor;
@@ -35,11 +36,11 @@ uniform samplerCube skybox;
 //components
 float ambientStrength = 0.45f;
 float specularStrength = 0.75f;
-float ambientStrengthPointLight = 0.8f;
+float ambientStrengthPointLight = 0.75f;
 float shininess = 32.0f;
 
 //attenuation of light
-float constant = 0.1f; 
+float constant = 1.0f; 
 float linear = 0.0045f; 
 float quadratic = 0.0035f;
 

@@ -15,6 +15,7 @@ uniform mat3 normalMatrix;
 //lighting
 uniform vec3 lightDir;
 uniform vec3 lightColor;
+uniform vec3 cameraPos;
 
 // textures
 uniform sampler2D diffuseTexture;
@@ -31,6 +32,8 @@ vec3 diffuse;
 vec3 specular;
 float specularStrength = 0.75f;
 float shininess = 32.0f;
+
+vec3 reflectedColor;
 
 void computeDirLight()
 {
@@ -54,6 +57,12 @@ void computeDirLight()
     vec3 reflectDir = reflect(-lightDirN, normalEye);
     float specCoeff = pow(max(dot(viewDir, reflectDir), 0.0f), 32);
     specular = specularStrength * specCoeff * lightColor;
+
+    // calculate the reflected color
+    vec3 R = reflect(-viewDir,normalize(fNormal));
+
+    reflectedColor = 0.3 * texture(skybox, R).rgb + 0.3 * lightColor;
+
 }
 
 
@@ -84,6 +93,7 @@ float computeShadow() {
 void main() 
 {
     computeDirLight();
+    
     float shadow = computeShadow();
 
     //compute final vertex color 

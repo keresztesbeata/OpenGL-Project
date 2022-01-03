@@ -11,6 +11,7 @@ out vec4 fColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat3 normalMatrix;
+uniform vec3 cameraPos;
 
 uniform vec3 lightDir;
 uniform vec3 lightColor;

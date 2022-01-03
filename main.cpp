@@ -62,9 +62,9 @@ glm::vec3 initialPointLightLeftPosition = glm::vec3(-10.0, LIGHT_HEIGHT, 1.0);
 glm::vec3 initialPointLightRightPosition = glm::vec3(10.0, LIGHT_HEIGHT, 1.0);
 
 // light properties
-const glm::vec3 RED_COLOUR = glm::vec3(1, 0, 0);
-const glm::vec3 GREEN_COLOUR = glm::vec3(0, 1, 0);
-const glm::vec3 BLUE_COLOUR = glm::vec3(0, 0, 1);
+const glm::vec3 ORANGE_COLOUR = glm::vec3(1, 0.5, 0);
+const glm::vec3 GREEN_COLOUR = glm::vec3(0.4, 1, 0.8);
+const glm::vec3 BLUE_COLOUR = glm::vec3(0.5, 0.2, 1);
 const glm::vec3 WHITE_COLOUR = glm::vec3(1, 1, 1);
 
 float cutOffAngle = 5.0; // defines the radius for spotlights
@@ -334,13 +334,13 @@ void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
         // pick up the ball from the ground
         ballPosition.y = PLAYER_HEIGHT;
-        ballPosition.z = -30;
         myCamera.setCameraTarget(ballPosition);
         return;
     }
 
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_T]) {
         // pick up the ball from the ground
+        ballPosition.z = -30;
         ballAnimation.setInitialPosition(ballPosition);
         ballAnimation.setThrowAngle(30);
         ballAnimation.setTargetPosition(GOAL1_POSITION);
@@ -399,6 +399,9 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     // send projection matrix to shader
     projection = glm::perspective(glm::radians(fov), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    
+    glUniformMatrix3fv(glGetUniformLocation(shader.shaderProgram, "cameraPos"), 1, GL_FALSE, glm::value_ptr(myCamera.getCameraPosition()));
+
     // send light dir to shader
     switch (currentShader) {
         case BASIC: {
@@ -554,12 +557,12 @@ void renderScene() {
     drawLightSources(lightShader);
 
     // draw the skybox last
-    //mySkyBox.Draw(skyboxShader, view, projection);
+    mySkyBox.Draw(skyboxShader, view, projection);
 }
 
 void initModels() {
     basketBall.LoadModel("models/basketball/basketball.obj", "models/basketball/");
-    basketBallCourt.LoadModel("models/basketball_court/basketball_court.obj", "models/basketball_court/");
+    basketBallCourt.LoadModel("models/basketball_court_glossy/basketball_court_glossy.obj", "models/basketball_court_glossy/");
     lightCube.LoadModel("models/cube/cube.obj");
     leftLight.LoadModel("models/cube/cube.obj");
     rightLight.LoadModel("models/cube/cube.obj");
@@ -611,6 +614,8 @@ void initUniformsForShader(gps::Shader shader) {
     projectionLoc = glGetUniformLocation(shader.shaderProgram, "projection");
     // send projection matrix to shader
     glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
+
+    glUniformMatrix3fv(glGetUniformLocation(shader.shaderProgram, "cameraPos"), 1, GL_FALSE, glm::value_ptr(myCamera.getCameraPosition()));
 
     if (currentShader == POINT_LIGHTS) {
         // send light dir to shader
