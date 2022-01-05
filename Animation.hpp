@@ -25,7 +25,7 @@ public:
 	void animateBounce();
 	void animateSpin();
 	void animateThrow(float pitch, float yaw);
-	void animateRoll(glm::vec3 rollDirection);
+	void animateRoll(float yaw);
 	void pickUpBall(glm::vec3 playerPosition);
 	void dropBall();
 	void moveBall(glm::vec3 playerPosition);
@@ -62,7 +62,7 @@ private:
 	// bounce effect
 	void bounce(float initialHeight);
 	void spin(glm::vec3 axis);
-	void roll(glm::vec3 direction);
+	void roll(float angle);
 	void throwBall(float pitch, float yaw);
 
 	void startAnimation(ANIMATION_TYPE animationType);
@@ -71,8 +71,7 @@ private:
 	// animation constants
 	const float MIN_BOUNCE = 0.0001;
 	const float BOUNCE_HEIGHT = 100.0;
-	const float THROW_HEIGHT = 5.0;
-	const float THROW_OFFSET = 5.0;
+	const float THROW_DISTANCE = 100.0;
 	const float MAX_DAMPING = 0.001;
 };
 

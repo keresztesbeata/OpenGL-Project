@@ -70,12 +70,7 @@ void Animation::startAnimation(ANIMATION_TYPE animationType) {
 	this->currentAnimation = animationType;
 	this->transformationMatrix = glm::mat4(1.0);
 	this->animationStartTime = glfwGetTime();
-
-	//todo:delete
-	std::cout << "started animation: " << animationType << std::endl;
-	teta = 0;
-	std::cout << "initial=";
-	printVector(initialPosition);
+	this->teta = 0;
 	playAnimation();
 }
 
@@ -105,7 +100,7 @@ void Animation::playAnimation() {
 			break;
 		}
 		case ROLL_ANIMATION: {
-			roll(targetPosition);
+			roll(yaw);
 			break;
 		}
 		default: break;
@@ -144,8 +139,8 @@ void Animation::animateThrow(float pitch, float yaw) {
 	startAnimation(THROW_ANIMATION);
 }
 
-void Animation::animateRoll(glm::vec3 rollDirection) {
-	this->targetPosition = rollDirection;
+void Animation::animateRoll(float yaw) {
+	this->yaw = yaw;
 	startAnimation(ROLL_ANIMATION);
 }
 
@@ -179,21 +174,20 @@ void Animation::spin(glm::vec3 axis) {
 	this->currentPosition = (glm::vec3(spinTransformation * glm::vec4(this->currentPosition, 1.0)));
 }
 
-void Animation::roll(glm::vec3 direction) {
+void Animation::roll(float angle) {
 	// Rotation = (Time * velocity) / radius
 
-	glm::mat4 trMatrix = glm::mat4(1.0);
-	trMatrix = glm::translate(trMatrix, -currentPosition);
-	trMatrix = glm::translate(trMatrix, glm::vec3(0,-1.0,0));
-	glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0), 0.01f, glm::vec3(0.5, 0.5, 0));
-	glm::mat4 invTrMatrix = glm::mat4(1.0);
-	invTrMatrix = glm::translate(invTrMatrix, glm::vec3(0, 1.0, 0));
-	invTrMatrix = glm::translate(invTrMatrix, currentPosition);
-	//rotationMatrix = glm::translate(rotationMatrix, 0.01f * glm::normalize(direction));
-	this->transformationMatrix = invTrMatrix * rotationMatrix * trMatrix;
+	glm::vec3 direction = glm::vec3(sin(glm::radians(yaw)), 0, cos(glm::radians(yaw))); // in normalized coordinates
+	glm::vec3 rollAxis = glm::cross(glm::vec3(0, 1, 0), direction);
+	this->transformationMatrix = glm::rotate(this->transformationMatrix, teta, rollAxis);
+	currentPosition = glm::vec3(this->transformationMatrix * glm::vec4(currentPosition, 1.0));
+	currentPosition += UNIT_STEP * direction;
+	//initialPosition = currentPosition;
+	initialPosition = glm::vec3(0, 0, 0);
+	teta += 1.0;
 
-	this->currentPosition = (glm::vec3(this->transformationMatrix * glm::vec4(this->currentPosition, 1.0)));
-	printVector(this->currentPosition);
+	//todo: check boundaries
+
 	/*
 	float R = 100.0;
 	float dr = glm::length(direction);
@@ -217,69 +211,10 @@ void Animation::roll(glm::vec3 direction) {
 
 }
 
-/*
-void Animation::throwBall(float pitch, float yaw) {
-	float unit_step = 0.1;
-
-	float xOffset = (yaw < 0) ? -1.0 : 1.0;
-	float zOffset = (targetPosition.z > 0) ? 1.0 : -1.0;
-
-	std::cout << "curr pos = ";
-	printVector(currentPosition);
-	
-	
-	if (currentPosition.y <= 0) {
-		if (pitch < 0) {
-			// throw the ball down: hit ground and bounce back
-			setInitialPosition(currentPosition);
-			startAnimation(BOUNCE_ANIMATION);
-			return;
-		}
-		else {
-			// ball has fallen down to the ground
-			// todo: check if it goes beyond the field's boundaries
-			stopAnimation();
-			return;
-		}
-	}
-	
-	float halfThrowDist =  10;//abs(THROW_HEIGHT / tan(pitch)) *10;
-	std::cout << "half = " << halfThrowDist << std::endl;
-	bool passedMiddle = length(currentPosition - initialPosition) > abs(halfThrowDist);
-	float yOffset = (passedMiddle) ? 1.0 : -1.0;
-	std::cout << "passed middle = " << passedMiddle << std::endl;
-
-	glm::vec3 prev = currentPosition;
-
-	currentPosition.x += xOffset * unit_step;
-	currentPosition.z += zOffset * unit_step;
-
-	float radius = halfThrowDist;
-	glm::vec3 center = glm::vec3(initialPosition.x + radius * xOffset, initialPosition.y + radius, initialPosition.z + zOffset * radius);
-
-	std::cout << "center=";
-	printVector(center);
-	float yPos = sphereEquation(radius, center, currentPosition.x, currentPosition.z);
-
-	currentPosition.y = yPos * yOffset + center.y;
-
-	std::cout << "ypos = " << yPos << std::endl;
-
-
-	if (currentPosition.y <= initialPosition.y - THROW_OFFSET) {
-		setInitialPosition(currentPosition);
-		startAnimation(BOUNCE_ANIMATION);
-		return;
-	}
-
-	this->transformationMatrix = glm::translate(this->transformationMatrix, -prev + currentPosition);
-}
-*/
-
 void Animation::throwBall(float pitch, float yaw) {
 	//trajectory: semi-circle
 
-	float radius = 10; //todo: from pitch
+	float radius = abs(sin(glm::radians(pitch))) * THROW_DISTANCE;
 	// the position of the ball on the curvilinear trajectory are expressed in polar coordinates
 	float z = cos(glm::radians(teta)) * radius;
 	float y = sin(glm::radians(teta)) * radius;

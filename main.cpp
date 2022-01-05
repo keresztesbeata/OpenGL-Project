@@ -332,7 +332,6 @@ void processObjectMovement() {
     // std::cout << "you can pick up the ball" << std::endl;
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
         // pick up the ball from the ground
-        std::cout << "pick up" << std::endl;
         ballAnimation.pickUpBall(myCamera.getCameraPosition() - MIN_DIST_FROM_BALL);
         myCamera.setCameraTarget(ballAnimation.getCurrentPosition());
     }
@@ -359,9 +358,7 @@ void processObjectMovement() {
     }
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_R]) {
         // roll
-        glm::vec3 rollDirection = glm::vec3(0,0,1); //todo: get from pitch and yaw
-        ballAnimation.setTargetPosition(rollDirection);
-        ballAnimation.animateRoll(rollDirection);
+        ballAnimation.animateRoll(yaw);
     }
     if (ballAnimation.isAnimationPlaying()) {
         if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
