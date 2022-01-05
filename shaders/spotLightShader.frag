@@ -4,9 +4,6 @@ in vec3 fPosition;
 in vec3 fNormal;
 in vec2 fTexCoords;
 in vec4 fragPosLightSpace;
-in vec4 fragPosLightSpaceLeft;
-in vec4 fragPosLightSpaceRight;
-in vec4 fragPosLightSpaceMiddle;
 
 out vec4 fColor;
 
@@ -16,14 +13,10 @@ uniform mat4 view;
 uniform mat3 normalMatrix;
 uniform vec3 cameraPos;
 
-uniform vec3 leftPointLightPosition;
-uniform vec3 leftPointLightColor;
-
-uniform vec3 rightPointLightPosition;
-uniform vec3 rightPointLightColor;
-
-uniform vec3 middlePointLightPosition;
-uniform vec3 middlePointLightColor;
+uniform vec3 lightPosition;
+uniform vec3 lightColor;
+uniform vec3 spotLightTarget;
+uniform float cutOffAngle;
 
 // textures
 uniform sampler2D diffuseTexture;
@@ -36,7 +29,7 @@ uniform samplerCube skybox;
 //components
 float ambientStrength = 0.45f;
 float specularStrength = 0.75f;
-float ambientStrengthPointLight = 0.75f;
+float ambientStrengthPointLight = 0.8f;
 float shininess = 32.0f;
 
 //attenuation of light
@@ -50,12 +43,14 @@ vec3 computePointLight(vec3 lightPosition, vec3 lightColor, vec4 fragPosLightSpa
 	vec3 diffuse;
 	vec3 specular;
 
-	vec3 cameraPosEye = vec3(0.0f);//in eye coordinates, the viewer is situated at the origin
-   
-    vec3 lightDir = lightPosition;
+	vec3 cameraPosEye = vec3(0.0f); //in eye coordinates, the viewer is situated at the origin
 
     //compute eye space coordinates
     vec4 fPosEye = view * model * vec4(fPosition, 1.0f);
+
+	vec4 lightPositionEye = view * model * vec4(lightPosition, 1.0f);
+
+	vec3 lightDir = fPosEye.xyz - lightPositionEye.xyz;
 
     vec3 normalEye = normalize(normalMatrix * fNormal);
 
@@ -85,19 +80,44 @@ vec3 computePointLight(vec3 lightPosition, vec3 lightColor, vec4 fragPosLightSpa
 	specular = att * specularStrength * specCoeff * lightColor;
 
     //compute final vertex color 
-    vec3 color = min((ambient + diffuse) * texture(diffuseTexture, fTexCoords).rgb + specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
+    vec3 color = min((ambient +  diffuse) * texture(diffuseTexture, fTexCoords).rgb + specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
     
 	return color;
 }
 
+vec3 computeSpotLight(vec3 lightPosition, vec3 lightColor, vec4 fragPosLightSpace) {
+	//compute eye space coordinates
+    vec4 fPosEye = view * model * vec4(fPosition, 1.0f);
+
+	vec4 lightPositionEye = view * model * vec4(lightPosition, 1.0f);
+	
+	vec4 spotLightTargetEye = view * model * vec4(spotLightTarget, 1.0f);
+
+    //compute view direction (in eye coordinates, the viewer is situated at the origin)
+    vec3 viewDirN = normalize(-fPosEye.xyz);
+
+	vec3 lightDir = (fPosEye - lightPositionEye).xyz;
+
+	//normalize light direction
+    vec3 lightDirN = vec3(normalize(lightDir));
+
+    float theta = dot(lightDirN, normalize(spotLightTargetEye.xyz - lightPositionEye.xyz));
+
+	vec3 color = computePointLight(lightDir, lightColor, fragPosLightSpace);
+
+	if(theta > cutOffAngle) 
+	{       
+	  return color;
+	}
+	else  {
+	  return 0.05 * color;
+	}
+  }
+
 void main() 
 {
 
-	vec3 resultColor = computePointLight(leftPointLightPosition, leftPointLightColor, fragPosLightSpaceLeft);
-
-	resultColor += computePointLight(middlePointLightPosition, middlePointLightColor, fragPosLightSpaceMiddle);
-
-	resultColor += computePointLight(rightPointLightPosition, rightPointLightColor, fragPosLightSpaceRight);
+	vec3 resultColor = computeSpotLight(lightPosition, lightColor, fragPosLightSpace);
 
     fColor = vec4(resultColor, 1.0f);
 }

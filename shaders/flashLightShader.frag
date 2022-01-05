@@ -13,7 +13,7 @@ uniform mat4 view;
 uniform mat3 normalMatrix;
 uniform vec3 cameraPos;
 
-uniform vec3 lightDir;
+uniform vec3 lightPosition;
 uniform vec3 lightColor;
 uniform vec3 spotLightTarget;
 uniform float cutOffAngle;
@@ -33,6 +33,15 @@ float ambientStrengthPointLight = 0.8f;
 float shininess = 32.0f;
 
 float computeShadow(vec4 fragPosLightSpace) {
+
+    vec4 fPosEye = view * model * vec4(fPosition, 1.0f);
+    vec3 normalEye = normalize(normalMatrix * fNormal);
+	
+	vec3 lightDir = normalize(spotLightTarget - lightPosition);
+
+    //normalize light direction
+    vec3 lightDirN = vec3(normalize(view * vec4(lightDir, 0.0f)));
+
 	// perform perspective divide 
 	vec3 normalizedCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
 
@@ -92,22 +101,26 @@ vec3 computeDirLight(vec3 lightDir, vec3 lightColor, vec4 fragPosLightSpace)
 	return color;
 }
 
-vec3 computeSpotLight(vec3 lightDir, vec3 lightColor, vec4 fragPosLightSpace) {
+vec3 computeSpotLight(vec3 lightPosition, vec3 lightColor, vec4 fragPosLightSpace) {
 	//compute eye space coordinates
     vec4 fPosEye = view * model * vec4(fPosition, 1.0f);
 
     //compute view direction (in eye coordinates, the viewer is situated at the origin)
     vec3 viewDirN = normalize(- fPosEye.xyz);
 
+	vec3 lightDir = normalize(spotLightTarget - lightPosition);
+
 	//normalize light direction
     vec3 lightDirN = vec3(normalize(view * vec4(lightDir, 0.0f)));
 
-    float theta = dot(lightDirN, normalize(spotLightTarget.xyz - viewDirN));
-
+	// compute the teta angle's cosine (using the dot product between the direction from the fragment to the light source and the spotlight's orientation)
+    float theta = dot(lightDirN, normalize(spotLightTarget - viewDirN));
+	
 	vec3 color = computeDirLight(lightDir, lightColor, fragPosLightSpace);
 
 	if(theta > cutOffAngle) 
 	{       
+	// the teta and cutOffAngle actually represent the cosine values of these angles, and the cosine is decreasing in (0,180), therefore it the fragment is contained in the spotlight if it's cosine is greater than the cos(cutOffAngle)
 	  return color;
 	}
 	else  {
@@ -118,7 +131,7 @@ vec3 computeSpotLight(vec3 lightDir, vec3 lightColor, vec4 fragPosLightSpace) {
 void main() 
 {
 
-	vec3 resultColor = computeSpotLight(lightDir, lightColor, fragPosLightSpace);
+	vec3 resultColor = computeSpotLight(lightPosition, lightColor, fragPosLightSpace);
 
     fColor = vec4(resultColor, 1.0f);
 }

@@ -51,7 +51,9 @@ glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_CENTER
 glm::vec3 initialLightPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT, 1.0);
 
 // light sources
-LightSource* lightSource;
+LightSource* directionalLight;
+LightSource* spotLight;
+LightSource* flashLight;
 LightSource* pointLightMiddle;
 LightSource* pointLightLeft;
 LightSource* pointLightRight;
@@ -67,8 +69,10 @@ const glm::vec3 GREEN_COLOUR = glm::vec3(0.4, 1, 0.8);
 const glm::vec3 BLUE_COLOUR = glm::vec3(0.5, 0.2, 1);
 const glm::vec3 WHITE_COLOUR = glm::vec3(1, 1, 1);
 
-float cutOffAngle = 5.0; // defines the radius for spotlights
-glm::vec3 spotLightTarget;
+const float MIN_CUT_OFF_ANGLE_FLASHLIGHTS = 1.0;
+const float MIN_CUT_OFF_ANGLE_SPOTLIGHTS = 5.0;
+float flashLightsCutOffAngle = 5.0; // defines the angle of contained area for flashLights
+float spotLightsCutOffAngle = 10.0; // defines the angle of contained area for spotLights
 
 // Animations
 float animationSpeed = 5.0;
@@ -77,13 +81,16 @@ Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballInitialPosition, anima
 // shaders
 gps::Shader basicShader;
 gps::Shader lightShader;
+gps::Shader spotLightShader;
 gps::Shader flashLightShader;
 gps::Shader pointLightsShader;
 gps::Shader depthMapShader;
 gps::Shader skyboxShader;
 
-enum SHADER_TYPE { BASIC, FLASH_LIGHT, POINT_LIGHTS };
+enum SHADER_TYPE { BASIC, FLASH_LIGHT, POINT_LIGHTS, SPOT_LIGHT };
 SHADER_TYPE currentShader = BASIC;
+
+LightSource* selectedLight = directionalLight;
 
 // shader uniform locations
 GLint modelLoc;
@@ -92,6 +99,7 @@ GLint projectionLoc;
 GLint normalMatrixLoc;
 GLint lightDirLoc;
 GLint lightColorLoc;
+GLint lightPositionLoc;
 GLint cutOffAngleLoc;
 GLint shininessLoc;
 GLint cameraPosLoc;
@@ -223,15 +231,22 @@ int main(int argc, const char* argv[]) {
 }
 
 void selectShader() {
-    if (pressedKeys[GLFW_KEY_4]) {
+    if (pressedKeys[GLFW_KEY_1]) {
         currentShader = BASIC;
+        selectedLight = directionalLight;
         initUniformsForShader(basicShader);
     }
-    if (pressedKeys[GLFW_KEY_5]) {
+    if (pressedKeys[GLFW_KEY_2]) {
         currentShader = FLASH_LIGHT;
+        selectedLight = flashLight;
         initUniformsForShader(flashLightShader);
     }
-    if (pressedKeys[GLFW_KEY_6]) {
+    if (pressedKeys[GLFW_KEY_3]) {
+        currentShader = SPOT_LIGHT;
+        selectedLight = spotLight;
+        initUniformsForShader(spotLightShader);
+    }
+    if (pressedKeys[GLFW_KEY_4]) {
         currentShader = POINT_LIGHTS;
         initUniformsForShader(pointLightsShader);
     }
@@ -281,17 +296,13 @@ void processCameraMovement() {
 }
 
 void processLightMovement() {
-    LightSource* selectedLight = lightSource;
-    if (pressedKeys[GLFW_KEY_0]) {
-        selectedLight = lightSource;
-    }
-    if (pressedKeys[GLFW_KEY_1]) {
+    if (pressedKeys[GLFW_KEY_5]) {
         selectedLight = pointLightLeft;
     }
-    if (pressedKeys[GLFW_KEY_2]) {
+    if (pressedKeys[GLFW_KEY_6]) {
         selectedLight = pointLightMiddle;
     }
-    if (pressedKeys[GLFW_KEY_3]) {
+    if (pressedKeys[GLFW_KEY_7]) {
         selectedLight = pointLightRight;
     }
     if (pressedKeys[GLFW_KEY_J]) {
@@ -302,9 +313,15 @@ void processLightMovement() {
     }
     if (pressedKeys[GLFW_KEY_I]) {
         selectedLight->move(gps::MOVE_UP);
+        if (selectedLight == spotLight) {
+            spotLightsCutOffAngle -= 0.1;
+        }
     }
     if (pressedKeys[GLFW_KEY_K]) {
         selectedLight->move(gps::MOVE_DOWN);
+        if (selectedLight == spotLight) {
+            spotLightsCutOffAngle += 0.1;
+        }
     }
     if (pressedKeys[GLFW_KEY_U]) {
         selectedLight->move(gps::ROTATE_CLOCKWISE);
@@ -339,6 +356,11 @@ void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_D]) {
         // drop the ball 
         ballAnimation.dropBall();
+    }
+
+    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_W]) {
+        // show wireframe
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
 
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_T]) {
@@ -378,7 +400,7 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     // do not send the other matrices to the depth map shader
     if (depthPass) {
-        glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(lightSource->computeLightSpaceTrMatrix()));
+        glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(directionalLight->computeLightSpaceTrMatrix()));
         return;
     }
     //update view matrix
@@ -392,20 +414,37 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     // send projection matrix to shader
     projection = glm::perspective(glm::radians(fov), (float)retina_width / (float)retina_height, 0.1f, 1000.0f);
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    
+    // send the camera's position to shader
     glUniformMatrix3fv(glGetUniformLocation(shader.shaderProgram, "cameraPos"), 1, GL_FALSE, glm::value_ptr(myCamera.getCameraPosition()));
+
+    // update the light sources
+
+    // flashlight is attached to the front of the camera
+    flashLight->setLightPosition(myCamera.getCameraPosition());
+    // the flashlight is oriented towards the camera's viewing (front) direction
+    flashLight->setLightTarget(myCamera.getCameraFrontDirection());
+
+    // both the spotlight and the directional light are oriented towards the ball's position
+    spotLight->setLightTarget(ballAnimation.getCurrentPosition());
+    directionalLight->setLightTarget(ballAnimation.getCurrentPosition());
 
     // send light dir to shader
     switch (currentShader) {
         case BASIC: {
-            glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightPosition()));
-            glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(lightSource->computeLightSpaceTrMatrix()));
+            glUniform3fv(lightDirLoc, 1, glm::value_ptr(directionalLight->getLightPosition()));
+            glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(directionalLight->computeLightSpaceTrMatrix()));
+            break;
+        }
+        case SPOT_LIGHT: {
+            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "lightPosition"), 1, glm::value_ptr(spotLight->getLightPosition()));
+            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "spotLightTarget"), 1, glm::value_ptr(spotLight->getLightTarget()));
+            glUniform1f(glGetUniformLocation(shader.shaderProgram, "cutOffAngle"), cos(glm::radians(spotLightsCutOffAngle)));
             break;
         }
         case FLASH_LIGHT: {
-            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "lightDir"), 1, glm::value_ptr(lightSource->getLightDir()));
-            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "spotLighTarget"), 1, glm::value_ptr(spotLightTarget));
-            glUniform1f(glGetUniformLocation(shader.shaderProgram, "cutOffAngle"), cos(glm::radians(cutOffAngle)));
+            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "lightPosition"), 1, glm::value_ptr(flashLight->getLightPosition()));
+            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "spotLightTarget"), 1, glm::value_ptr(flashLight->getLightTarget()));
+            glUniform1f(glGetUniformLocation(shader.shaderProgram, "cutOffAngle"), cos(glm::radians(flashLightsCutOffAngle)));
             break;
         }
         case POINT_LIGHTS: {
@@ -418,9 +457,9 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
             glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightColor"), 1, glm::value_ptr(pointLightRight->getLightColor()));
             glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightColor"), 1, glm::value_ptr(pointLightMiddle->getLightColor()));
 
-            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightDir"), 1, glm::value_ptr(pointLightLeft->getLightPosition()));
-            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightDir"), 1, glm::value_ptr(pointLightRight->getLightPosition()));
-            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightDir"), 1, glm::value_ptr(pointLightMiddle->getLightPosition()));
+            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightPosition"), 1, glm::value_ptr(pointLightLeft->getLightPosition()));
+            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightPosition"), 1, glm::value_ptr(pointLightRight->getLightPosition()));
+            glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightPosition"), 1, glm::value_ptr(pointLightMiddle->getLightPosition()));
             break;
         }
     }
@@ -436,7 +475,7 @@ void updateCommonUniformsForShader(gps::Shader shader, glm::mat4 model) {
 }
 
 glm::mat4 getModelForDrawingLightCube(LightSource* lightSource) {
-    glm::mat4 lightCubeModel = glm::mat4(1.0);
+    glm::mat4 lightCubeModel = lightSource->getTransformationMatrix();
     lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightSource->getLightPosition());
     lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.5f, 0.5f, 0.5f));
     return lightCubeModel;
@@ -453,6 +492,7 @@ void drawObjects(gps::Shader shader, bool depthPass) {
     // draw ball
     updateUniforms(shader, model * ballAnimation.getTransformationMatrix(), depthPass);
     basketBall.Draw(shader);
+    // draw the basketball court
     glm::mat4 sceneTransformation = getSceneTransformation();
     updateUniforms(shader, sceneTransformation * model, depthPass);
     basketBallCourt.Draw(shader);
@@ -461,23 +501,30 @@ void drawObjects(gps::Shader shader, bool depthPass) {
 void drawLightSources(gps::Shader shader) {
     shader.useShaderProgram();
     switch (currentShader) {
-    case BASIC: {
-        updateCommonUniformsForShader(shader, getModelForDrawingLightCube(lightSource));
-        lightCube.Draw(shader);
-        break;
-    }
-    case FLASH_LIGHT: {
-        break;
-    }
-    case POINT_LIGHTS: {
-        updateCommonUniformsForShader(shader, getModelForDrawingLightCube(pointLightMiddle));
-        middleLight.Draw(shader);
-        updateCommonUniformsForShader(shader, getModelForDrawingLightCube(pointLightLeft));
-        leftLight.Draw(shader);
-        updateCommonUniformsForShader(shader, getModelForDrawingLightCube(pointLightRight));
-        rightLight.Draw(shader);
-        break;
-    }
+        case BASIC: {
+            updateCommonUniformsForShader(shader, getModelForDrawingLightCube(directionalLight));
+            lightCube.Draw(shader);
+            break;
+        }
+        case FLASH_LIGHT: {
+            updateCommonUniformsForShader(shader, getModelForDrawingLightCube(flashLight));
+            lightCube.Draw(shader);
+            break;
+        }
+        case SPOT_LIGHT: {
+            updateCommonUniformsForShader(shader, getModelForDrawingLightCube(spotLight));
+            lightCube.Draw(shader);
+            break;
+        }
+        case POINT_LIGHTS: {
+            updateCommonUniformsForShader(shader, getModelForDrawingLightCube(pointLightMiddle));
+            middleLight.Draw(shader);
+            updateCommonUniformsForShader(shader, getModelForDrawingLightCube(pointLightLeft));
+            leftLight.Draw(shader);
+            updateCommonUniformsForShader(shader, getModelForDrawingLightCube(pointLightRight));
+            rightLight.Draw(shader);
+            break;
+        }
     }
 }
 
@@ -505,36 +552,34 @@ void renderScene() {
     glViewport(0, 0, retina_width, retina_height);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    //bind the shadow map
-    basicShader.useShaderProgram();
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, depthMapTexture);
-    glUniform1i(glGetUniformLocation(basicShader.shaderProgram, "shadowMap"), 3);
-
-    if (currentShader == FLASH_LIGHT) {
-        // light is attached to the front of the camera
-        lightSource->setLightPosition(myCamera.getCameraPosition());
-        lightSource->setLightTarget(myCamera.getCameraFrontDirection());
-    }
-    else {
-        lightSource->setLightTarget(ballAnimation.getCurrentPosition());
-    }
-    spotLightTarget = lightSource->getLightTarget();
-
+    gps::Shader selectedShader = basicShader;
     switch (currentShader) {
         case BASIC: {
-            drawObjects(basicShader, false);
+            selectedShader = basicShader;
             break;
         }
         case FLASH_LIGHT: {
-            drawObjects(flashLightShader, false);
+            selectedShader = flashLightShader;
+            break;
+        }
+        case SPOT_LIGHT: {
+            selectedShader = spotLightShader;
             break;
         }
         case POINT_LIGHTS: {
-            drawObjects(pointLightsShader, false);
+            selectedShader = pointLightsShader;
             break;
         }
     }
+    
+    //bind the shadow map
+    selectedShader.useShaderProgram();
+    glActiveTexture(GL_TEXTURE3);
+    glBindTexture(GL_TEXTURE_2D, depthMapTexture);
+    glUniform1i(glGetUniformLocation(selectedShader.shaderProgram, "shadowMap"), 3);
+
+    // draw the objects with the currently seleted shader
+    drawObjects(selectedShader, false);
 
     //draw a white cube around each light
     drawLightSources(lightShader);
@@ -568,6 +613,9 @@ void initShaders() {
     flashLightShader.loadShader(
         "shaders/flashLightShader.vert",
         "shaders/flashLightShader.frag");
+    spotLightShader.loadShader(
+        "shaders/spotLightShader.vert",
+        "shaders/spotLightShader.frag");
     pointLightsShader.loadShader(
         "shaders/pointLightsShader.vert",
         "shaders/pointLightsShader.frag");
@@ -606,9 +654,9 @@ void initUniformsForShader(gps::Shader shader) {
         glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightColor"), 1, glm::value_ptr(pointLightRight->getLightColor()));
         glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightColor"), 1, glm::value_ptr(pointLightMiddle->getLightColor()));
 
-        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightDir"), 1, glm::value_ptr(pointLightLeft->getLightPosition()));
-        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightDir"), 1, glm::value_ptr(pointLightRight->getLightPosition()));
-        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightDir"), 1, glm::value_ptr(pointLightMiddle->getLightPosition()));
+        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightPosition"), 1, glm::value_ptr(pointLightLeft->getLightPosition()));
+        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightPosition"), 1, glm::value_ptr(pointLightRight->getLightPosition()));
+        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightPosition"), 1, glm::value_ptr(pointLightMiddle->getLightPosition()));
 
         glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixLeft"), 1, GL_FALSE, glm::value_ptr(pointLightLeft->computeLightSpaceTrMatrix()));
         glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixRight"), 1, GL_FALSE, glm::value_ptr(pointLightRight->computeLightSpaceTrMatrix()));
@@ -617,22 +665,37 @@ void initUniformsForShader(gps::Shader shader) {
         return;
     }
 
-    // send light dir to shader
-    lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
-    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightSource->getLightDir()));
-
+    if (currentShader == SPOT_LIGHT) {
+        lightPositionLoc = glGetUniformLocation(shader.shaderProgram, "lightPosition");
+        glUniform3fv(lightPositionLoc, 1, glm::value_ptr(spotLight->getLightPosition()));
+    }
+    else if (currentShader == FLASH_LIGHT) {
+        lightPositionLoc = glGetUniformLocation(shader.shaderProgram, "lightPosition");
+        glUniform3fv(lightPositionLoc, 1, glm::value_ptr(flashLight->getLightPosition()));
+    }
+    else {
+        // send light dir to shader
+        lightDirLoc = glGetUniformLocation(shader.shaderProgram, "lightDir");
+        glUniform3fv(lightDirLoc, 1, glm::value_ptr(directionalLight->getLightDir()));
+    }
     // send light color to shader
     lightColorLoc = glGetUniformLocation(shader.shaderProgram, "lightColor");
-    glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightSource->getLightColor()));
+    glUniform3fv(lightColorLoc, 1, glm::value_ptr(directionalLight->getLightColor()));
 
     if (currentShader == FLASH_LIGHT) {
-        cutOffAngleLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
-        glUniform1f(cutOffAngleLoc, cos(glm::radians(cutOffAngle)));
-
         spotLightTargetLoc = glGetUniformLocation(shader.shaderProgram, "spotLightTarget");
-        glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(spotLightTarget));
+        glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(flashLight->getLightTarget()));
 
-        return;
+        cutOffAngleLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
+        glUniform1f(cutOffAngleLoc, cos(glm::radians(spotLightsCutOffAngle)));
+    }
+
+    if (currentShader == SPOT_LIGHT) {
+        spotLightTargetLoc = glGetUniformLocation(shader.shaderProgram, "spotLightTarget");
+        glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(spotLight->getLightTarget()));
+
+        cutOffAngleLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
+        glUniform1f(cutOffAngleLoc, cos(glm::radians(flashLightsCutOffAngle)));
     }
 
 }
@@ -655,10 +718,12 @@ void initLightSources() {
     //set the light target (where the lights are pointing to) and position of light sources
     //set light color 
 
-    lightSource = new LightSource(initialLightPosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
-    pointLightMiddle = new LightSource(initialPointLightMiddlePosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
-    pointLightLeft = new LightSource(initialPointLightLeftPosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
-    pointLightRight = new LightSource(initialPointLightRightPosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
+    directionalLight = new LightSource(initialLightPosition, ballInitialPosition, WHITE_COLOUR);
+    flashLight = new LightSource(cameraInitialPosition, ballInitialPosition, WHITE_COLOUR);
+    spotLight = new LightSource(initialLightPosition, ballInitialPosition, WHITE_COLOUR);
+    pointLightMiddle = new LightSource(initialPointLightMiddlePosition, ballInitialPosition, WHITE_COLOUR);
+    pointLightLeft = new LightSource(initialPointLightLeftPosition, ballInitialPosition, WHITE_COLOUR);
+    pointLightRight = new LightSource(initialPointLightRightPosition, ballInitialPosition, WHITE_COLOUR);
 }
 
 void initFBO() {
@@ -739,10 +804,10 @@ void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
         fov = 45.0f;
 
     // change the radius of the flashlight
-    float inc = (yoffset < 0) ? 1.0 : -1.0;
-    cutOffAngle += inc;
-    if (cutOffAngle < 5.0) {
-        cutOffAngle = 5.0;
+    float inc = (yoffset < 0) ? 0.1 : -0.1;
+    flashLightsCutOffAngle += inc;
+    if (flashLightsCutOffAngle < MIN_CUT_OFF_ANGLE_FLASHLIGHTS) {
+        flashLightsCutOffAngle = MIN_CUT_OFF_ANGLE_FLASHLIGHTS;
     }
 }
 

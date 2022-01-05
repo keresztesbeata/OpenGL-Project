@@ -71,7 +71,8 @@ private:
 	// animation constants
 	const float MIN_BOUNCE = 0.0001;
 	const float BOUNCE_HEIGHT = 100.0;
-	const float THROW_DISTANCE = 100.0;
+	const float THROW_DISTANCE = 50.0;
+	const float THROW_HEIGHT = 20.0;
 	const float MAX_DAMPING = 0.001;
 };
 

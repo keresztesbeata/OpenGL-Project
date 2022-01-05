@@ -9,10 +9,13 @@ LightSource::LightSource(glm::vec3 lightPosition, glm::vec3 lightTarget, glm::ve
     this->ambientStrength = 1.0;
     this->specularStrength = 1.0;
 }
+
 void LightSource::setTransformationMatrix(glm::mat4 newTransformationMatrix) {
     this->transformationMatrix = newTransformationMatrix;
-    this->lightPosition = glm::mat3(transformationMatrix) * lightPosition;
+    this->lightPosition = glm::vec3(transformationMatrix * glm::vec4(lightPosition,1.0));
+    this->lightDir = glm::normalize(lightTarget - lightPosition);
 }
+
 void LightSource::setLightPosition(glm::vec3 lightPosition) {
     this->lightPosition = lightPosition;
     this->lightDir = glm::normalize(lightTarget - lightPosition);
@@ -51,7 +54,6 @@ float LightSource::getSpecularStrength() {
 glm::vec3 LightSource::getLightTarget() {
     return this->lightTarget;
 }
-
 
 glm::mat4 LightSource::computeLightSpaceTrMatrix() {
     // Return the light-space transformation matrix
@@ -94,12 +96,14 @@ void LightSource::move(gps::MOVE_DIRECTION direction) {
         break;
     }
     case gps::MOVE_FORWARD: {
+        // increase intensity of light
         if (ambientStrength < 1.0) {
             ambientStrength += 0.1;
         }
         break;
     }
     case gps::MOVE_BACKWARD: {
+        // decrease intensity of light
         if (ambientStrength > 0) {
             ambientStrength -= 0.1;
         }

@@ -182,7 +182,6 @@ void Animation::roll(float angle) {
 	this->transformationMatrix = glm::rotate(this->transformationMatrix, teta, rollAxis);
 	currentPosition = glm::vec3(this->transformationMatrix * glm::vec4(currentPosition, 1.0));
 	currentPosition += UNIT_STEP * direction;
-	//initialPosition = currentPosition;
 	initialPosition = glm::vec3(0, 0, 0);
 	teta += 1.0;
 
@@ -212,12 +211,14 @@ void Animation::roll(float angle) {
 }
 
 void Animation::throwBall(float pitch, float yaw) {
-	//trajectory: semi-circle
+	//trajectory: ellipsoid
 
-	float radius = abs(sin(glm::radians(pitch))) * THROW_DISTANCE;
+	float distance = abs(sin(glm::radians(pitch))) * THROW_DISTANCE;
+	float height = abs(sin(glm::radians(pitch))) * THROW_HEIGHT;
 	// the position of the ball on the curvilinear trajectory are expressed in polar coordinates
-	float z = cos(glm::radians(teta)) * radius;
-	float y = sin(glm::radians(teta)) * radius;
+	float x = sin(glm::radians(yaw)) * distance;
+	float z = cos(glm::radians(teta)) * distance;
+	float y = sin(glm::radians(teta)) * height;
 	// the angle enclosed between the yz axis, which is incremented at each step to reconstruct the path of the flying ball
 	teta += 1.0;
 
@@ -231,10 +232,11 @@ void Animation::throwBall(float pitch, float yaw) {
 		stopAnimation();
 		return;
 	}
-	currentPosition.y = initialPosition.y + y;
-	currentPosition.z = initialPosition.z + z - radius;
 
-	this->transformationMatrix = glm::translate(glm::mat4(1.0), glm::vec3(0, y, z - radius));
+	this->transformationMatrix = glm::rotate(glm::mat4(1.0), glm::radians(yaw), glm::vec3(0, 1, 0));
+	this->transformationMatrix = glm::translate(this->transformationMatrix, glm::vec3(x, y, z - distance));
+
+	this->currentPosition = glm::vec3(this->transformationMatrix * glm::vec4(this->initialPosition, 1.0));
 }
 
 
