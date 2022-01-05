@@ -15,23 +15,25 @@ public:
 	Animation(float elasticity, float weight, glm::vec3 initialPosition);
 	Animation(float elasticity, float weight, glm::vec3 initialPosition, float animationSpeed);
 	// setters
-	void setTransformationMatrix(glm::mat4 newTransformationMatrix);
 	void setInitialPosition(glm::vec3 newPosition);
 	void setTargetPosition(glm::vec3 newPosition);
 	void setAnimationSpeed(float speed);
-	void setElasticity(float elasticity);
-	void setThrowAngles(float pitch, float yaw);
 	// getters for querying the animation's state
 	glm::mat4 getTransformationMatrix();
 	glm::vec3 getCurrentPosition();
-	bool isAnimationPlaying();
+
+	void animateBounce();
+	void animateSpin();
+	void animateThrow(float pitch, float yaw);
+	void animateRoll(glm::vec3 rollDirection);
+	void pickUpBall(glm::vec3 playerPosition);
+	void dropBall();
+	void moveBall(glm::vec3 playerPosition);
 
 	// control animation
-	void startAnimation(ANIMATION_TYPE animationType);
 	void stopAnimation();
+	bool isAnimationPlaying();
 	virtual void playAnimation();
-
-	void moveBall(glm::vec3 playerPosition);
 
 private:
 	glm::mat4 transformationMatrix;
@@ -40,6 +42,7 @@ private:
 	glm::vec3 targetPosition;
 	ANIMATION_TYPE currentAnimation;
 
+	bool isBallPickedUp = false;
 	// general animation properties
 	float animationSpeed = DEFAULT_ANIMATION_SPEED;
 	bool animationPlaying = false;
@@ -49,7 +52,8 @@ private:
 	float elasticity;
 	float weight;
 	glm::vec3 spinAxis;
-	float throwPitch, throwYaw;
+	float pitch, yaw;
+	float teta = 0;
 
 	// constants
 	const float UNIT_STEP = 0.01; 
@@ -61,6 +65,7 @@ private:
 	void roll(glm::vec3 direction);
 	void throwBall(float pitch, float yaw);
 
+	void startAnimation(ANIMATION_TYPE animationType);
 	void initAnimation(float elasticity, float weight, glm::vec3 initialPosition, float animationSpeed);
 
 	// animation constants

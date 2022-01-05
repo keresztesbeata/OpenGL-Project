@@ -36,17 +36,17 @@ glm::mat3 normalMatrix;
 glm::mat4 lightRotation;
 
 // object's properties
-const float BALL_ELASTICITY = 0.5;
+const float BALL_ELASTICITY = 0.8;
 const float BALL_WEIGHT = 5;
 const float PLAYER_HEIGHT = 15.0;
 const float DIST_FROM_CENTER_OF_FIELD = 50.0f;
-const glm::vec3 MIN_DIST_FROM_BALL = glm::vec3(0,2,5);
+const glm::vec3 MIN_DIST_FROM_BALL = glm::vec3(0,3,5);
 const float LIGHT_HEIGHT = 20.0f;
 const float GLOBAL_LIGHT_HEIGHT = 20.0f;
 const glm::vec3 GOAL1_POSITION = glm::vec3(0, 30, -30);
 
 // initial position of objects and camera
-glm::vec3 ballPosition = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 ballInitialPosition = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_CENTER_OF_FIELD);
 glm::vec3 initialLightPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT, 1.0);
 
@@ -72,8 +72,7 @@ glm::vec3 spotLightTarget;
 
 // Animations
 float animationSpeed = 5.0;
-Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballPosition, animationSpeed);
-bool isBallPickedUp = false; // move ball together with camera when it is picked up by a player
+Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballInitialPosition, animationSpeed);
 
 // shaders
 gps::Shader basicShader;
@@ -101,10 +100,10 @@ GLint spotLightTargetLoc;
 // camera
 gps::Camera myCamera(
     cameraInitialPosition,
-    ballPosition,
+    ballInitialPosition,
     glm::vec3(0.0f, 1.0f, 0.0f));
 
-GLfloat cameraAngle = 90.0f;
+GLfloat cameraAngle = -90.0f;
 float rollAngle = 0.0;
 float fov = 45.0f;
 float pitch = 0.0f, yaw = -90.0f;
@@ -169,8 +168,6 @@ void selectShader();
 // functions for updating the transformation matrices after the camera or the object has moved
 void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
 void updateCommonUniformsForShader(gps::Shader shader, glm::mat4 model);
-glm::vec3 getMoveDirection();
-glm::mat4 getBallTransformation();
 glm::mat4 getSceneTransformation();
 glm::mat4 getModelForDrawingLightCube(LightSource* lightSource);
 
@@ -325,18 +322,8 @@ void processLightMovement() {
 
 bool isCloseToBall() {
     // height doesn't count: player can pick up the ball when he gets close enough to it
-    return (abs(myCamera.getCameraPosition().x - ballPosition.x) < MIN_DIST_FROM_BALL.x) &&
-        (abs(myCamera.getCameraPosition().z - ballPosition.z) < MIN_DIST_FROM_BALL.z);
-}
-
-glm::vec3 getMoveDirection() {
-    glm::vec3 moveDirection = glm::vec3(1,0,0); // x axis = glm::normalize(ballPosition - GOAL1_POSITION) = x axis
-    glm::mat4 moveTransformation = glm::mat4(1.0);
-    moveTransformation = glm::translate(moveTransformation, -ballPosition);
-    moveTransformation = glm::rotate(moveTransformation, yaw, glm::vec3(1, 0, 0));
-    moveTransformation = glm::translate(moveTransformation, ballPosition);
-    moveDirection = glm::vec3(moveTransformation * glm::vec4(moveDirection, 1.0));
-    return moveDirection;
+    return (abs(myCamera.getCameraPosition().x - ballAnimation.getCurrentPosition().x) < MIN_DIST_FROM_BALL.x) &&
+        (abs(myCamera.getCameraPosition().z - ballAnimation.getCurrentPosition().z) < MIN_DIST_FROM_BALL.z);
 }
 
 void processObjectMovement() {
@@ -345,60 +332,48 @@ void processObjectMovement() {
     // std::cout << "you can pick up the ball" << std::endl;
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
         // pick up the ball from the ground
-        isBallPickedUp = true;
-        ballPosition = myCamera.getCameraPosition() - MIN_DIST_FROM_BALL;
-        myCamera.setCameraTarget(ballPosition);
-        return;
+        std::cout << "pick up" << std::endl;
+        ballAnimation.pickUpBall(myCamera.getCameraPosition() - MIN_DIST_FROM_BALL);
+        myCamera.setCameraTarget(ballAnimation.getCurrentPosition());
     }
 
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_D]) {
-        // drop the ball => start bouncing
-        isBallPickedUp = false;
-        ballAnimation.setInitialPosition(ballPosition);
-        ballAnimation.startAnimation(BOUNCE_ANIMATION);
-        return;
+        // drop the ball 
+        ballAnimation.dropBall();
     }
 
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_T] && isBallPickedUp) {
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_T]) {
         // throw the ball if it was previously picked up
-        ballAnimation.setInitialPosition(ballPosition);
-        ballAnimation.setThrowAngles(pitch + THROW_PITCH_OFFSET,yaw + THROW_YAW_OFFSET);
         ballAnimation.setTargetPosition(GOAL1_POSITION);
-        ballAnimation.startAnimation(THROW_ANIMATION);
-        return;
+        ballAnimation.animateThrow(pitch + THROW_PITCH_OFFSET,yaw + THROW_YAW_OFFSET);
     }
 
     //start a new animation
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
         // bounce
-        ballAnimation.setInitialPosition(ballPosition);
-        ballAnimation.startAnimation(BOUNCE_ANIMATION);
-        return;
+        ballAnimation.animateBounce();
     }
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
         // spin
-        ballAnimation.setInitialPosition(ballPosition);
-        ballAnimation.startAnimation(SPIN_ANIMATION);
-        return;
+        ballAnimation.animateSpin();
     }
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_R]) {
         // roll
-        ballAnimation.setInitialPosition(ballPosition);
-        glm::vec3 rollDirection = getMoveDirection();
+        glm::vec3 rollDirection = glm::vec3(0,0,1); //todo: get from pitch and yaw
         ballAnimation.setTargetPosition(rollDirection);
-        ballAnimation.startAnimation(ROLL_ANIMATION);
-        return;
+        ballAnimation.animateRoll(rollDirection);
     }
     if (ballAnimation.isAnimationPlaying()) {
         if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
             // stop object animation
             ballAnimation.stopAnimation();
-            return;
         }
-        // play the current animation if any
-        ballAnimation.playAnimation();
-        ballPosition = ballAnimation.getCurrentPosition();
+        else {
+            // play the current animation if any
+            ballAnimation.playAnimation();
+        }
     }
+    
 }
 
 void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
@@ -470,12 +445,6 @@ glm::mat4 getModelForDrawingLightCube(LightSource* lightSource) {
     return lightCubeModel;
 }
 
-glm::mat4 getBallTransformation() {
-    glm::mat4 ballTransformation = glm::mat4(1.0);
-    ballTransformation = glm::translate(ballTransformation, 1.0f * ballPosition);
-    return ballTransformation;
-}
-
 glm::mat4 getSceneTransformation() {
     glm::mat4 sceneTransformation = glm::mat4(1.0);
     sceneTransformation = glm::rotate(sceneTransformation, glm::radians(cameraAngle), glm::vec3(0, 1, 0));
@@ -485,11 +454,7 @@ glm::mat4 getSceneTransformation() {
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
     // draw ball
-    glm::mat4 ballTransformation = getBallTransformation();
-    if (ballAnimation.isAnimationPlaying()) {
-        ballTransformation = ballTransformation * ballAnimation.getTransformationMatrix();
-    }
-    updateUniforms(shader, ballTransformation * model, depthPass);
+    updateUniforms(shader, model * ballAnimation.getTransformationMatrix(), depthPass);
     basketBall.Draw(shader);
     glm::mat4 sceneTransformation = getSceneTransformation();
     updateUniforms(shader, sceneTransformation * model, depthPass);
@@ -555,7 +520,7 @@ void renderScene() {
         lightSource->setLightTarget(myCamera.getCameraFrontDirection());
     }
     else {
-        lightSource->setLightTarget(ballPosition);
+        lightSource->setLightTarget(ballAnimation.getCurrentPosition());
     }
     spotLightTarget = lightSource->getLightTarget();
 
@@ -693,10 +658,10 @@ void initLightSources() {
     //set the light target (where the lights are pointing to) and position of light sources
     //set light color 
 
-    lightSource = new LightSource(initialLightPosition, ballPosition, WHITE_COLOUR);
-    pointLightMiddle = new LightSource(initialPointLightMiddlePosition, ballPosition, WHITE_COLOUR);
-    pointLightLeft = new LightSource(initialPointLightLeftPosition, ballPosition, WHITE_COLOUR);
-    pointLightRight = new LightSource(initialPointLightRightPosition, ballPosition, WHITE_COLOUR);
+    lightSource = new LightSource(initialLightPosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
+    pointLightMiddle = new LightSource(initialPointLightMiddlePosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
+    pointLightLeft = new LightSource(initialPointLightLeftPosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
+    pointLightRight = new LightSource(initialPointLightRightPosition, ballAnimation.getCurrentPosition(), WHITE_COLOUR);
 }
 
 void initFBO() {
