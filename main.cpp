@@ -40,10 +40,15 @@ const float BALL_ELASTICITY = 0.8;
 const float BALL_WEIGHT = 5;
 const float PLAYER_HEIGHT = 15.0;
 const float DIST_FROM_CENTER_OF_FIELD = 50.0f;
-const glm::vec3 MIN_DIST_FROM_BALL = glm::vec3(0,3,5);
+const glm::vec3 DIST_FROM_BALL = glm::vec3(0, 3, 5);
+const float MIN_DIST_FROM_BALL = 20;
+const float MIN_DIST_FROM_GOAL = 20;
 const float LIGHT_HEIGHT = 20.0f;
 const float GLOBAL_LIGHT_HEIGHT = 20.0f;
-const glm::vec3 GOAL1_POSITION = glm::vec3(0, 30, -30);
+const glm::vec3 GOAL1_POSITION = glm::vec3(0, 19, -87);
+const glm::vec3 GOAL2_POSITION = glm::vec3(0, 19, 87);
+const float BOARD_WIDTH = 7;
+const float BOARD_LENGTH = 14;
 
 // initial position of objects and camera
 glm::vec3 ballInitialPosition = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -116,7 +121,7 @@ float rollAngle = 0.0;
 float fov = 45.0f;
 float pitch = 0.0f, yaw = -90.0f;
 
-const float THROW_PITCH_OFFSET = 30;
+const float THROW_PITCH_OFFSET = 45;
 const float THROW_YAW_OFFSET = 90;
 
 // uniform camera movement taking into consideration the frequency of the rendered frames
@@ -293,6 +298,10 @@ void processCameraMovement() {
     if (pressedKeys[GLFW_KEY_E]) {
         cameraAngle += 1.0f;
     }
+
+    if (ballAnimation.isBallPickedUp()) {
+        ballAnimation.setInitialPosition(myCamera.getCameraPosition() - DIST_FROM_BALL);
+    }
 }
 
 void processLightMovement() {
@@ -337,52 +346,75 @@ void processLightMovement() {
     }
 }
 
+bool isGoalHit() {
+   glm::vec3 currentPosition = ballAnimation.getCurrentPosition();
+   return abs(currentPosition.y - GOAL1_POSITION.y) < BOARD_WIDTH &&
+       abs(currentPosition.x - GOAL1_POSITION.x) < BOARD_LENGTH &&
+       abs(currentPosition.z - GOAL1_POSITION.z) < MIN_DIST_FROM_GOAL;
+}
+
 bool isCloseToBall() {
     // height doesn't count: player can pick up the ball when he gets close enough to it
-    return (abs(myCamera.getCameraPosition().x - ballAnimation.getCurrentPosition().x) < MIN_DIST_FROM_BALL.x) &&
-        (abs(myCamera.getCameraPosition().z - ballAnimation.getCurrentPosition().z) < MIN_DIST_FROM_BALL.z);
+    return (abs(myCamera.getCameraPosition().x - ballAnimation.getCurrentPosition().x) < MIN_DIST_FROM_BALL) &&
+        (abs(myCamera.getCameraPosition().z - ballAnimation.getCurrentPosition().z) < MIN_DIST_FROM_BALL);
 }
 
 void processObjectMovement() {
-
-    // if (isCloseToBall()) {
-    // std::cout << "you can pick up the ball" << std::endl;
-    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
-        // pick up the ball from the ground
-        ballAnimation.pickUpBall(myCamera.getCameraPosition() - MIN_DIST_FROM_BALL);
-        myCamera.setCameraTarget(ballAnimation.getCurrentPosition());
-    }
-
-    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_D]) {
-        // drop the ball 
-        ballAnimation.dropBall();
-    }
+    
+    // control keys for attaching/detaching object to/from the camera: combination of left CTRL + key
 
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_W]) {
         // show wireframe
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
 
+    if (isGoalHit()) {
+
+        // todo display success!!
+        ballAnimation.animateBounce();
+        return;
+    }
+
+   // if (isCloseToBall()) {
+        // allow the player to pick up the ball when he/she is in close to it
+       // std::cout << "You can pick up the ball" << std::endl;
+        if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
+            // pick up the ball from the ground
+            ballAnimation.pickUpBall(myCamera.getCameraPosition() - DIST_FROM_BALL);
+            myCamera.setCameraTarget(ballAnimation.getCurrentPosition());
+        }
+    //}
+
+    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_D]) {
+        // drop the ball 
+        ballAnimation.dropBall();
+    }
+
+    // control keys for animation: combination of left SHIFT + key
+
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_T]) {
         // throw the ball if it was previously picked up
         ballAnimation.setTargetPosition(GOAL1_POSITION);
-        ballAnimation.animateThrow(pitch + THROW_PITCH_OFFSET,yaw + THROW_YAW_OFFSET);
+        ballAnimation.animateThrow(pitch + THROW_PITCH_OFFSET, cameraAngle);
     }
 
-    //start a new animation
+    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_D]) {
+        // dribble
+        ballAnimation.animateDribble();
+    }
+
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
         // bounce
         ballAnimation.animateBounce();
     }
+
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
         // spin
         ballAnimation.animateSpin();
     }
-    if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_R]) {
-        // roll
-        ballAnimation.animateRoll(yaw);
-    }
+
     if (ballAnimation.isAnimationPlaying()) {
+        // only 1 animation can be played at a time -> animations are independent of the player (object is moving while the player may not)
         if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
             // stop object animation
             ballAnimation.stopAnimation();
@@ -490,10 +522,11 @@ glm::mat4 getSceneTransformation() {
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
     // draw ball
-    updateUniforms(shader, model * ballAnimation.getTransformationMatrix(), depthPass);
+    glm::mat4 sceneTransformation = getSceneTransformation();
+    glm::mat4 ballTransformation = ballAnimation.getTransformationMatrix();
+    updateUniforms(shader, model * ballTransformation, depthPass);
     basketBall.Draw(shader);
     // draw the basketball court
-    glm::mat4 sceneTransformation = getSceneTransformation();
     updateUniforms(shader, sceneTransformation * model, depthPass);
     basketBallCourt.Draw(shader);
 }
@@ -825,16 +858,14 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
     xoffset *= mouseSensitivity;
     yoffset *= mouseSensitivity;
     yaw += xoffset;
-    pitch += yoffset;
+    pitch += yoffset * 2;
 
-    // the viewer cannot turn his head on 360*, only up until 180* and down until -180*
-    if (pitch > 180.0f)
-        pitch = 180.0f;
-    if (pitch < -180.0f)
-        pitch = -180.0f;
-        
-    //todo: delete
-    std::cout << "(p,y)="<<pitch << "," << yaw << std::endl;
+    if (pitch >= 89) {
+        pitch = 89;
+    }
+    else if (pitch <= -89) {
+        pitch = -89;
+    }
 
     myCamera.rotate(pitch, yaw);
 }

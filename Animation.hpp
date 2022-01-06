@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cmath>
 
-enum ANIMATION_TYPE {ROLL_ANIMATION, BOUNCE_ANIMATION, SPIN_ANIMATION, THROW_ANIMATION};
+enum ANIMATION_TYPE {BOUNCE_ANIMATION, SPIN_ANIMATION, THROW_ANIMATION, DRIBBLE_ANIMATION};
 
 #pragma once
 class Animation
@@ -22,10 +22,11 @@ public:
 	glm::mat4 getTransformationMatrix();
 	glm::vec3 getCurrentPosition();
 
-	void animateBounce();
 	void animateSpin();
 	void animateThrow(float pitch, float yaw);
-	void animateRoll(float yaw);
+	void animateDribble();
+	void animateBounce();
+
 	void pickUpBall(glm::vec3 playerPosition);
 	void dropBall();
 	void moveBall(glm::vec3 playerPosition);
@@ -33,6 +34,7 @@ public:
 	// control animation
 	void stopAnimation();
 	bool isAnimationPlaying();
+	bool isBallPickedUp();
 	virtual void playAnimation();
 
 private:
@@ -42,7 +44,7 @@ private:
 	glm::vec3 targetPosition;
 	ANIMATION_TYPE currentAnimation;
 
-	bool isBallPickedUp = false;
+	bool ballPickedUp = false;
 	// general animation properties
 	float animationSpeed = DEFAULT_ANIMATION_SPEED;
 	bool animationPlaying = false;
@@ -59,10 +61,9 @@ private:
 	const float UNIT_STEP = 0.01; 
 	const float DEFAULT_ANIMATION_SPEED = 10.0;
 
-	// bounce effect
+	void dribble(float initialHeight);
 	void bounce(float initialHeight);
 	void spin(glm::vec3 axis);
-	void roll(float angle);
 	void throwBall(float pitch, float yaw);
 
 	void startAnimation(ANIMATION_TYPE animationType);
