@@ -11,28 +11,39 @@ bool isBackToOriginalPosition(glm::vec3 newPosition, glm::vec3 originalPosition,
 void printVector(glm::vec3 v);
 void printMatrix(glm::mat4 matrix);
 
-Animation::Animation(float elasticity, float weight, glm::vec3 initialPosition, float animationSpeed) {
-	initAnimation(elasticity, weight, initialPosition, animationSpeed);
+Animation::Animation(glm::vec3 initialPosition, float animationSpeed) {
+	initAnimation(initialPosition, animationSpeed);
 }
 
-Animation::Animation(float elasticity, float weight, glm::vec3 initialPosition) {
-	initAnimation(elasticity, weight, initialPosition, 1.0);
+Animation::Animation(glm::vec3 initialPosition) {
+	initAnimation(initialPosition, 1.0);
 }
 
-void Animation::initAnimation(float elasticity, float weight, glm::vec3 initialPosition, float animationSpeed) {
-	this->animationPlaying = false;
-	this->animationStartTime = 0.0;
-	this->spinAxis = glm::vec3(0, 1, 0); // y axis
+void Animation::initAnimation(glm::vec3 initialPosition, float animationSpeed) {
 	setAnimationSpeed(animationSpeed);
-	this->initialPosition = glm::vec3(0.0, 0.0, 0.0);
+	this->initialPosition = initialPosition;
 	this->currentPosition = this->initialPosition;
 	this->targetPosition = this->currentPosition;
-	this->elasticity = elasticity;
-	this->pitch = 0.0;
-	this->yaw = 0.0;
-	this->weight = weight;
 	this->transformationMatrix = glm::mat4(1.0);
-	this->ballPickedUp = false;
+}
+
+void Animation::setObjectProperties(float elasticity, float weight) {
+	this->elasticity = elasticity;
+	this->weight = weight;
+}
+
+void Animation::setCourtDimensions(glm::vec3 reference, float width, float length, float height) {
+	glm::mat4 transformCourtCorners = glm::mat4(1.0);
+	transformCourtCorners = glm::scale(transformCourtCorners, glm::vec3(length/2, height, width/2));
+
+	pO = glm::vec3(transformCourtCorners * glm::vec4(pO, 1.0));
+	pX = glm::vec3(transformCourtCorners * glm::vec4(pX, 1.0));
+	pY = glm::vec3(transformCourtCorners * glm::vec4(pY, 1.0));
+	pZ = glm::vec3(transformCourtCorners * glm::vec4(pZ, 1.0));
+
+	this->u = pX - pO;
+	this->v = pY - pO;
+	this->w = pZ - pO;
 }
 
 void Animation::setInitialPosition(glm::vec3 newPosition) {
@@ -76,14 +87,50 @@ void Animation::startAnimation(ANIMATION_TYPE animationType) {
 	this->animationStartTime = glfwGetTime();
 	this->initialPosition = this->currentPosition;
 	this->teta = 0;
-	playAnimation();
 }
 
 void Animation::stopAnimation() {
 	animationPlaying = false;
 }
 
+
+/*
+* Checks if the point representing the ball's current position lies inside the basketball court (rectangular 3D shape of the predefined coordinates) using the dot product.
+*/
+bool Animation::isOutsideBasketballCourt() {
+	glm::vec3 point = currentPosition;
+	printVector(currentPosition);
+	if (!animationPlaying) {
+		// should only be checked during an animation (until the ball didn't stop moving)
+		return false;
+	}
+
+	printVector(pO);
+	printVector(pX);
+	printVector(pY);
+	printVector(pZ);
+
+	// check the 3 direction vectors
+	if(glm::dot(u, point) < glm::dot(u, pO) || glm::dot(u, point) > glm::dot(u, pX)) {
+		std::cout<<"outside u" << std::endl;
+		return true;
+	}
+	if (glm::dot(v, point) < glm::dot(v, pO) || glm::dot(v, point) > glm::dot(v, pY)) {
+		std::cout<<"outside v" << std::endl;
+		return true;
+	}
+	if (glm::dot(w, point) < glm::dot(w, pO) || glm::dot(w, point) > glm::dot(w, pZ)) {
+		std::cout << "outside w" << std::endl;
+		return true;
+	}
+
+	return false;
+}
+
 void Animation::playAnimation() {
+
+	glm::vec3 prevPosition = currentPosition;
+
 	switch (currentAnimation) {
 		case BOUNCE_ANIMATION: {
 			bounce(this->initialPosition.y);
@@ -103,6 +150,14 @@ void Animation::playAnimation() {
 		}
 		default: break;
 	}
+
+	if (isOutsideBasketballCourt()) {
+		std::cout << "outside court" << std::endl;
+		this->currentPosition = prevPosition;
+		//animateThrow(0, -180);
+		stopAnimation();
+	}
+
 }
 
 void Animation::pickUpBall(glm::vec3 playerPosition) {
@@ -198,6 +253,10 @@ void Animation::throwBall(float pitch, float yaw) {
 	}
 	this->transformationMatrix = glm::translate(glm::mat4(1.0), glm::vec3(0, y, z));
 	this->currentPosition = glm::vec3(this->transformationMatrix * glm::vec4(this->initialPosition, 1.0));
+}
+
+void Animation::hitWall() {
+	animateThrow(45,-180);
 }
 
 /* helper functions */

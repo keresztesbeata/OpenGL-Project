@@ -38,17 +38,22 @@ glm::mat4 lightRotation;
 // object's properties
 const float BALL_ELASTICITY = 0.8;
 const float BALL_WEIGHT = 5;
-const float PLAYER_HEIGHT = 15.0;
+const float PLAYER_HEIGHT = 12.0;
 const float DIST_FROM_CENTER_OF_FIELD = 50.0f;
 const glm::vec3 DIST_FROM_BALL = glm::vec3(0, 3, 5);
 const float MIN_DIST_FROM_BALL = 20;
-const float MIN_DIST_FROM_GOAL = 20;
+const float MIN_DIST_FROM_GOAL = 2;
 const float LIGHT_HEIGHT = 20.0f;
 const float GLOBAL_LIGHT_HEIGHT = 20.0f;
-const glm::vec3 GOAL1_POSITION = glm::vec3(0, 19, -87);
-const glm::vec3 GOAL2_POSITION = glm::vec3(0, 19, 87);
-const float BOARD_WIDTH = 7;
-const float BOARD_LENGTH = 14;
+const glm::vec3 GOAL1_POSITION = glm::vec3(0, 22, -86);
+const glm::vec3 GOAL2_POSITION = glm::vec3(0, 22, 86);
+const float BOARD_WIDTH = 4;
+const float BOARD_LENGTH = 5;
+
+// court dimensions
+const float BASKETBALL_COURT_LENGTH = 176.0;
+const float BASKETBALL_COURT_WIDTH = 50.0;
+const float BASKETBALL_COURT_HEIGHT = 30.0;
 
 // initial position of objects and camera
 glm::vec3 ballInitialPosition = glm::vec3(0.0f, 0.0f, 0.0f);
@@ -81,7 +86,7 @@ float spotLightsCutOffAngle = 10.0; // defines the angle of contained area for s
 
 // Animations
 float animationSpeed = 5.0;
-Animation ballAnimation(BALL_ELASTICITY, BALL_WEIGHT, ballInitialPosition, animationSpeed);
+Animation ballAnimation(ballInitialPosition, animationSpeed);
 
 // shaders
 gps::Shader basicShader;
@@ -125,7 +130,7 @@ const float THROW_PITCH_OFFSET = 45;
 const float THROW_YAW_OFFSET = 90;
 
 // uniform camera movement taking into consideration the frequency of the rendered frames
-GLfloat cameraSpeed = 0.1f;
+GLfloat cameraSpeed = 1.0f;
 float deltaTime = 0.0f;	// Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
 
@@ -162,6 +167,7 @@ void initOpenGLWindow();
 void setWindowCallbacks();
 void initOpenGLState();
 void initModels();
+void initAnimations();
 void initShaders();
 void initUniforms();
 void initUniformsForShader(gps::Shader shader);
@@ -177,6 +183,8 @@ void processCameraMovement();
 
 // select a shader
 void selectShader();
+// select a light source to animate
+void selectLightSource();
 
 // functions for updating the transformation matrices after the camera or the object has moved
 void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass);
@@ -210,6 +218,7 @@ int main(int argc, const char* argv[]) {
 
     initOpenGLState();
     initModels();
+    initAnimations();
     initSkyBox();
     initShaders();
     initLightSources();
@@ -268,8 +277,9 @@ void processCameraMovement() {
         // combination of Shift + key is for controlling the objectAnimations
         return;
     }
-    cameraSpeed = 2.5f * deltaTime;
+    cameraSpeed = 20.0f * deltaTime;
     myCamera.setCameraSpeed(cameraSpeed);
+
     if (pressedKeys[GLFW_KEY_W]) {
         myCamera.move(gps::MOVE_FORWARD);
     }
@@ -304,7 +314,7 @@ void processCameraMovement() {
     }
 }
 
-void processLightMovement() {
+void selectLightSource() {
     if (pressedKeys[GLFW_KEY_5]) {
         selectedLight = pointLightLeft;
     }
@@ -314,6 +324,12 @@ void processLightMovement() {
     if (pressedKeys[GLFW_KEY_7]) {
         selectedLight = pointLightRight;
     }
+}
+
+void processLightMovement() {
+    // select a light source
+    selectLightSource();
+
     if (pressedKeys[GLFW_KEY_J]) {
         selectedLight->move(gps::MOVE_LEFT);
     }
@@ -368,11 +384,16 @@ void processObjectMovement() {
         glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     }
 
-    if (isGoalHit()) {
+    if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_F]) {
+        // disable wireframe
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
 
+    if (isGoalHit()) {
+        std::cout << "goal!" << std::endl;
         // todo display success!!
         ballAnimation.animateBounce();
-        return;
+        goto ANIMATE;
     }
 
    // if (isCloseToBall()) {
@@ -388,6 +409,7 @@ void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_D]) {
         // drop the ball 
         ballAnimation.dropBall();
+        goto ANIMATE;
     }
 
     // control keys for animation: combination of left SHIFT + key
@@ -396,33 +418,37 @@ void processObjectMovement() {
         // throw the ball if it was previously picked up
         ballAnimation.setTargetPosition(GOAL1_POSITION);
         ballAnimation.animateThrow(pitch + THROW_PITCH_OFFSET, cameraAngle);
+        goto ANIMATE;
     }
 
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_D]) {
         // dribble
         ballAnimation.animateDribble();
+        goto ANIMATE;
     }
 
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_B]) {
         // bounce
         ballAnimation.animateBounce();
+        goto ANIMATE;
     }
 
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_S]) {
         // spin
         ballAnimation.animateSpin();
+        goto ANIMATE;
     }
-
+    
+ANIMATE:
     if (ballAnimation.isAnimationPlaying()) {
         // only 1 animation can be played at a time -> animations are independent of the player (object is moving while the player may not)
         if (pressedKeys[GLFW_KEY_LEFT_SHIFT] && pressedKeys[GLFW_KEY_Z]) {
             // stop object animation
             ballAnimation.stopAnimation();
+            return;
         }
-        else {
-            // play the current animation if any
-            ballAnimation.playAnimation();
-        }
+        // play the current animation if any
+        ballAnimation.playAnimation();
     }
     
 }
@@ -521,13 +547,17 @@ glm::mat4 getSceneTransformation() {
 
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
+  
+    model = getSceneTransformation();
     // draw ball
-    glm::mat4 sceneTransformation = getSceneTransformation();
     glm::mat4 ballTransformation = ballAnimation.getTransformationMatrix();
-    updateUniforms(shader, model * ballTransformation, depthPass);
+    if (!ballAnimation.isBallPickedUp() || ballAnimation.isAnimationPlaying()) {
+        ballTransformation = ballTransformation * model;
+    }
+    updateUniforms(shader, ballTransformation, depthPass);
     basketBall.Draw(shader);
+    updateUniforms(shader, model, depthPass);
     // draw the basketball court
-    updateUniforms(shader, sceneTransformation * model, depthPass);
     basketBallCourt.Draw(shader);
 }
 
@@ -630,6 +660,11 @@ void initModels() {
     middleLight.LoadModel("models/cube/cube.obj");
 }
 
+void initAnimations() {
+    ballAnimation.setCourtDimensions(glm::vec3(0,0,0), BASKETBALL_COURT_WIDTH, BASKETBALL_COURT_LENGTH, BASKETBALL_COURT_HEIGHT);
+    ballAnimation.setObjectProperties(BALL_ELASTICITY, BALL_WEIGHT);
+}
+
 void initShaders() {
     basicShader.loadShader(
         "shaders/shadowShader.vert",
@@ -658,7 +693,7 @@ void initUniformsForShader(gps::Shader shader) {
     shader.useShaderProgram();
 
     // create model matrix 
-    model = glm::mat4(1.0f);
+    model = getSceneTransformation();;
     modelLoc = glGetUniformLocation(shader.shaderProgram, "model");
 
     // get view matrix for current camera
@@ -734,7 +769,9 @@ void initUniformsForShader(gps::Shader shader) {
 }
 
 void initUniforms() {
+    // init the uniform matrices for the basic shader
     initUniformsForShader(basicShader);
+
     // send the projection matrix to the light shader
     lightShader.useShaderProgram();
     glUniformMatrix4fv(glGetUniformLocation(lightShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
