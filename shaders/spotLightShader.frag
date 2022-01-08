@@ -35,6 +35,8 @@ float shininess = 32.0f;
 float constant = 1.0f; 
 float linear = 0.0045f; 
 float quadratic = 0.0035f;
+// spotlight's outercone's angle given in cos
+float outerCone = 0.87;
 
 
 vec3 computePointLight(vec3 lightPosition, vec3 lightColor)
@@ -93,12 +95,13 @@ vec3 computeSpotLight(vec3 lightPosition, vec3 lightColor) {
 
 	vec3 color = computePointLight(lightPosition, lightColor);
 
-	if(theta > cutOffAngle) 
-	{       
-	  return color;
-	}
-	else  {
-	  return 0.05 * color;
+	 if(theta > cutOffAngle) {
+        return color;
+    }
+	else{
+		float epsilon = cutOffAngle - outerCone;
+		float intensity = (theta - outerCone)/epsilon;
+		return intensity * color;
 	}
   }
 

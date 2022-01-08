@@ -31,6 +31,8 @@ float ambientStrength = 0.45f;
 float specularStrength = 0.75f;
 float ambientStrengthPointLight = 0.8f;
 float shininess = 32.0f;
+// spotlight's outercone's angle given in cos
+float outerCone = 0.99;
 
 float computeShadow(vec4 fragPosLightSpace) {
 
@@ -117,14 +119,14 @@ vec3 computeSpotLight(vec3 lightPosition, vec3 lightColor, vec4 fragPosLightSpac
     float theta = dot(lightDirN, normalize(spotLightTarget - viewDirN));
 	
 	vec3 color = computeDirLight(lightDir, lightColor, fragPosLightSpace);
-
-	if(theta > cutOffAngle) 
-	{       
-	// the teta and cutOffAngle actually represent the cosine values of these angles, and the cosine is decreasing in (0,180), therefore it the fragment is contained in the spotlight if it's cosine is greater than the cos(cutOffAngle)
-	  return color;
-	}
-	else  {
-	  return 0.05 * color;
+    
+	 if(theta > cutOffAngle) {
+        return color;
+    }
+	else{
+		float epsilon = (cutOffAngle - outerCone);
+		float intensity = (theta - outerCone)/epsilon;
+		return intensity * color;
 	}
   }
 

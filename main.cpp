@@ -82,7 +82,7 @@ const glm::vec3 WHITE_COLOUR = glm::vec3(1, 1, 1);
 const float MIN_CUT_OFF_ANGLE_FLASHLIGHTS = 1.0;
 const float MIN_CUT_OFF_ANGLE_SPOTLIGHTS = 5.0;
 float flashLightsCutOffAngle = 5.0; // defines the angle of contained area for flashLights
-float spotLightsCutOffAngle = 10.0; // defines the angle of contained area for spotLights
+float spotLightsCutOffAngle = 15.0; // defines the angle of contained area for spotLights
 
 // Animations
 float animationSpeed = 5.0;
