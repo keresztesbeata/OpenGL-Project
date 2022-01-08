@@ -55,7 +55,7 @@ glm::vec3 LightSource::getLightTarget() {
     return this->lightTarget;
 }
 
-glm::mat4 LightSource::computeLightSpaceTrMatrix() {
+glm::mat4 LightSource::computeLightSpaceTrMatrixDirectionalLight() {
     // Return the light-space transformation matrix
     glm::mat4 lightView = glm::lookAt(lightPosition, glm::vec3(0), glm::vec3(0.0f, 1.0f, 0.0f));
     const GLfloat near_plane = 0.1f, far_plane = 100.0f;
@@ -72,11 +72,11 @@ void LightSource::setLightAttributes(float ambientStrength, float specularStreng
 void LightSource::move(gps::MOVE_DIRECTION direction) {
     switch (direction) {
     case gps::MOVE_LEFT: {
-        rotate(-1.0, glm::vec3(0.0f, 0.0f, 1.0f));
+        rotate(1.0, glm::vec3(0.0f, 0.0f, 1.0f));
         break;
     }
     case gps::MOVE_RIGHT: {
-        rotate(1.0, glm::vec3(0.0f, 0.0f, 1.0f));
+        rotate(-1.0, glm::vec3(0.0f, 0.0f, 1.0f));
         break;
     }
     case gps::ROTATE_CLOCKWISE: {
@@ -88,11 +88,11 @@ void LightSource::move(gps::MOVE_DIRECTION direction) {
         break;
     }
     case gps::MOVE_UP: {
-        rotate(-1.0, glm::vec3(1.0f, 0.0f, 0.0f));
+        rotate(1.0, glm::vec3(1.0f, 0.0f, 0.0f));
         break;
     }
     case gps::MOVE_DOWN: {
-        rotate(1.0, glm::vec3(1.0f, 0.0f, 0.0f));
+        rotate(-1.0, glm::vec3(1.0f, 0.0f, 0.0f));
         break;
     }
     case gps::MOVE_FORWARD: {

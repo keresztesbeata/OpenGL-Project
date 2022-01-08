@@ -19,7 +19,7 @@ public:
     float getAmbientStrength();
     float getSpecularStrength();
     void move(gps::MOVE_DIRECTION direction);
-    glm::mat4 computeLightSpaceTrMatrix();
+    glm::mat4 computeLightSpaceTrMatrixDirectionalLight();
 
 private:
     void rotate(float angle, glm::vec3 axis);

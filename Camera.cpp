@@ -2,7 +2,7 @@
 
 namespace gps {
 
-    //Camera constructor
+    //Camera constructors
     Camera::Camera(glm::vec3 cameraPosition, glm::vec3 cameraTarget, glm::vec3 cameraUp) {
         this->cameraPosition = cameraPosition;
         this->cameraTarget = cameraTarget;
@@ -24,6 +24,7 @@ namespace gps {
     glm::vec3 Camera::getCameraFrontDirection() {
         return this->cameraFrontDirection;
     }
+
     // get the camera target
     glm::vec3 Camera::getCameraTarget() {
         return this->cameraTarget;

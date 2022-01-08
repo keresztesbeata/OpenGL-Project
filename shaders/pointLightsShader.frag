@@ -3,10 +3,6 @@
 in vec3 fPosition;
 in vec3 fNormal;
 in vec2 fTexCoords;
-in vec4 fragPosLightSpace;
-in vec4 fragPosLightSpaceLeft;
-in vec4 fragPosLightSpaceRight;
-in vec4 fragPosLightSpaceMiddle;
 
 out vec4 fColor;
 
@@ -39,34 +35,31 @@ float specularStrength = 0.75f;
 float ambientStrengthPointLight = 0.75f;
 float shininess = 32.0f;
 
+
 //attenuation of light
 float constant = 1.0f; 
 float linear = 0.0045f; 
 float quadratic = 0.0035f;
 
-vec3 computePointLight(vec3 lightPosition, vec3 lightColor, vec4 fragPosLightSpace)
+vec3 computePointLight(vec3 lightPosition, vec3 lightColor)
 {
 	vec3 ambient;
 	vec3 diffuse;
 	vec3 specular;
 
-	vec3 cameraPosEye = vec3(0.0f);//in eye coordinates, the viewer is situated at the origin
-   
-    vec3 lightDir = lightPosition;
-
     //compute eye space coordinates
     vec4 fPosEye = view * model * vec4(fPosition, 1.0f);
-
+	vec4 lightPosEye = view * model * vec4(lightPosition, 1.0f);
     vec3 normalEye = normalize(normalMatrix * fNormal);
 
 	//compute view direction (in eye coordinates, the viewer is situated at the origin
-    vec3 viewDirN = normalize(- fPosEye.xyz);
+    vec3 viewDirN = normalize( - fPosEye.xyz);
 
     //normalize light direction
-    vec3 lightDirN = vec3(normalize(view * vec4(lightDir, 0.0f)));
+    vec3 lightDirN = vec3(normalize(view * vec4(lightPosEye.xyz - fPosEye.xyz, 0.0f)));
 
     //compute distance to light 
-	float dist = length(cameraPosEye - fPosEye.xyz); 
+	float dist = length(lightPosEye.xyz - fPosEye.xyz); 
 
 	//compute attenuation 
 	float att = 1.0f / (constant + linear * dist + quadratic * (dist * dist));
@@ -93,11 +86,11 @@ vec3 computePointLight(vec3 lightPosition, vec3 lightColor, vec4 fragPosLightSpa
 void main() 
 {
 
-	vec3 resultColor = computePointLight(leftPointLightPosition, leftPointLightColor, fragPosLightSpaceLeft);
+	vec3 resultColor = computePointLight(middlePointLightPosition, middlePointLightColor);
 
-	resultColor += computePointLight(middlePointLightPosition, middlePointLightColor, fragPosLightSpaceMiddle);
+	resultColor += computePointLight(leftPointLightPosition, leftPointLightColor);
 
-	resultColor += computePointLight(rightPointLightPosition, rightPointLightColor, fragPosLightSpaceRight);
+	resultColor += computePointLight(rightPointLightPosition, rightPointLightColor);
 
     fColor = vec4(resultColor, 1.0f);
 }

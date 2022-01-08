@@ -327,9 +327,10 @@ void selectLightSource() {
 }
 
 void processLightMovement() {
+    
     // select a light source
-    selectLightSource();
 
+    selectLightSource();
     if (pressedKeys[GLFW_KEY_J]) {
         selectedLight->move(gps::MOVE_LEFT);
     }
@@ -337,15 +338,15 @@ void processLightMovement() {
         selectedLight->move(gps::MOVE_RIGHT);
     }
     if (pressedKeys[GLFW_KEY_I]) {
-        selectedLight->move(gps::MOVE_UP);
+        selectedLight->move(gps::MOVE_DOWN);
         if (selectedLight == spotLight) {
-            spotLightsCutOffAngle -= 0.1;
+           // spotLightsCutOffAngle -= 0.1;
         }
     }
     if (pressedKeys[GLFW_KEY_K]) {
-        selectedLight->move(gps::MOVE_DOWN);
+        selectedLight->move(gps::MOVE_UP);
         if (selectedLight == spotLight) {
-            spotLightsCutOffAngle += 0.1;
+          //  spotLightsCutOffAngle += 0.1;
         }
     }
     if (pressedKeys[GLFW_KEY_U]) {
@@ -458,7 +459,7 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
     // do not send the other matrices to the depth map shader
     if (depthPass) {
-        glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(directionalLight->computeLightSpaceTrMatrix()));
+        glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(directionalLight->computeLightSpaceTrMatrixDirectionalLight()));
         return;
     }
     //update view matrix
@@ -490,7 +491,7 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
     switch (currentShader) {
         case BASIC: {
             glUniform3fv(lightDirLoc, 1, glm::value_ptr(directionalLight->getLightPosition()));
-            glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(directionalLight->computeLightSpaceTrMatrix()));
+            glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrix"), 1, GL_FALSE, glm::value_ptr(directionalLight->computeLightSpaceTrMatrixDirectionalLight()));
             break;
         }
         case SPOT_LIGHT: {
@@ -506,9 +507,6 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
             break;
         }
         case POINT_LIGHTS: {
-            glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixLeft"), 1, GL_FALSE, glm::value_ptr(pointLightLeft->computeLightSpaceTrMatrix()));
-            glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixRight"), 1, GL_FALSE, glm::value_ptr(pointLightRight->computeLightSpaceTrMatrix()));
-            glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixMiddle"), 1, GL_FALSE, glm::value_ptr(pointLightMiddle->computeLightSpaceTrMatrix()));
             
             // send point light dir and color to shader
             glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightColor"), 1, glm::value_ptr(pointLightLeft->getLightColor()));
@@ -536,7 +534,7 @@ glm::mat4 getModelForDrawingLightCube(LightSource* lightSource) {
     glm::mat4 lightCubeModel = lightSource->getTransformationMatrix();
     lightCubeModel = glm::translate(lightCubeModel, 1.0f * lightSource->getLightPosition());
     lightCubeModel = glm::scale(lightCubeModel, glm::vec3(0.5f, 0.5f, 0.5f));
-    return lightCubeModel;
+    return getSceneTransformation() * lightCubeModel;
 }
 
 glm::mat4 getSceneTransformation() {
@@ -725,10 +723,6 @@ void initUniformsForShader(gps::Shader shader) {
         glUniform3fv(glGetUniformLocation(shader.shaderProgram, "leftPointLightPosition"), 1, glm::value_ptr(pointLightLeft->getLightPosition()));
         glUniform3fv(glGetUniformLocation(shader.shaderProgram, "rightPointLightPosition"), 1, glm::value_ptr(pointLightRight->getLightPosition()));
         glUniform3fv(glGetUniformLocation(shader.shaderProgram, "middlePointLightPosition"), 1, glm::value_ptr(pointLightMiddle->getLightPosition()));
-
-        glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixLeft"), 1, GL_FALSE, glm::value_ptr(pointLightLeft->computeLightSpaceTrMatrix()));
-        glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixRight"), 1, GL_FALSE, glm::value_ptr(pointLightRight->computeLightSpaceTrMatrix()));
-        glUniformMatrix4fv(glGetUniformLocation(shader.shaderProgram, "lightSpaceTrMatrixMiddle"), 1, GL_FALSE, glm::value_ptr(pointLightMiddle->computeLightSpaceTrMatrix()));
         
         return;
     }
@@ -755,7 +749,7 @@ void initUniformsForShader(gps::Shader shader) {
         glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(flashLight->getLightTarget()));
 
         cutOffAngleLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
-        glUniform1f(cutOffAngleLoc, cos(glm::radians(spotLightsCutOffAngle)));
+        glUniform1f(cutOffAngleLoc, cos(glm::radians(flashLightsCutOffAngle)));
     }
 
     if (currentShader == SPOT_LIGHT) {
@@ -763,7 +757,7 @@ void initUniformsForShader(gps::Shader shader) {
         glUniform3fv(spotLightTargetLoc, 1, glm::value_ptr(spotLight->getLightTarget()));
 
         cutOffAngleLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
-        glUniform1f(cutOffAngleLoc, cos(glm::radians(flashLightsCutOffAngle)));
+        glUniform1f(cutOffAngleLoc, cos(glm::radians(spotLightsCutOffAngle)));
     }
 
 }

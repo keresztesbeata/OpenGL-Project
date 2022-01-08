@@ -150,13 +150,11 @@ void Animation::playAnimation() {
 		}
 		default: break;
 	}
-
+	/*
 	if (isOutsideBasketballCourt()) {
-		std::cout << "outside court" << std::endl;
-		this->currentPosition = prevPosition;
-		//animateThrow(0, -180);
 		stopAnimation();
 	}
+	*/
 
 }
 
