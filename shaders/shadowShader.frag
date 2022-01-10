@@ -11,11 +11,11 @@ out vec4 fColor;
 uniform mat4 model;
 uniform mat4 view;
 uniform mat3 normalMatrix;
-uniform vec3 cameraPos;
 
 //lighting
 uniform vec3 lightDir;
 uniform vec3 lightColor;
+uniform vec3 cameraPos;
 
 // textures
 uniform sampler2D diffuseTexture;
@@ -27,11 +27,13 @@ uniform samplerCube skybox;
 
 //components
 vec3 ambient;
-float ambientStrength = 0.2f;
+float ambientStrength = 0.45f;
 vec3 diffuse;
 vec3 specular;
-float specularStrength = 0.5f;
+float specularStrength = 0.75f;
 float shininess = 32.0f;
+
+vec3 reflectedColor;
 
 void computeDirLight()
 {
@@ -55,6 +57,12 @@ void computeDirLight()
     vec3 reflectDir = reflect(-lightDirN, normalEye);
     float specCoeff = pow(max(dot(viewDir, reflectDir), 0.0f), 32);
     specular = specularStrength * specCoeff * lightColor;
+
+    // calculate the reflected color
+    vec3 R = reflect(-viewDir,normalize(fNormal));
+
+    reflectedColor = 0.3 * texture(skybox, R).rgb + 0.3 * lightColor;
+
 }
 
 
@@ -75,20 +83,21 @@ float computeShadow() {
 		return 0.0f; 
 
     float bias = max(0.05 * (1.0 - dot(fNormal, lightDir)), 0.005);  
-	// Check whether current frag pos is in shadow 
+	
+    // Check whether current frag pos is in shadow 
 	float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
-    
+
 	return shadow;
 }
 
 void main() 
 {
     computeDirLight();
+    
     float shadow = computeShadow();
 
     //compute final vertex color 
     vec3 color = min((ambient + (1.0 - shadow) * diffuse) * texture(diffuseTexture, fTexCoords).rgb + (1.0 - shadow) * specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
     
-    //vec3 color = refractedColor;
     fColor = vec4(color, 1.0f);
 }
