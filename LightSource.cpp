@@ -1,21 +1,31 @@
 #include "LightSource.hpp"
 
-/* for debugging */
-void printMatrix(glm::mat4 matrix);
-void printVector(glm::vec3 v);
-
-LightSource::LightSource(glm::vec3 lightDir, glm::vec3 lightColor) {
+LightSource::LightSource(glm::vec3 lightPosition, glm::vec3 lightTarget, glm::vec3 lightColor) {
     this->transformationMatrix = glm::mat4(1.0f);
-	this->lightDir = lightDir;
+    this->lightTarget = lightTarget;
+    this->lightPosition = lightPosition;
+    this->lightDir = glm::normalize(lightTarget - lightPosition);
 	this->lightColor = lightColor;
+    this->ambientStrength = 1.0;
+    this->specularStrength = 1.0;
 }
+
 void LightSource::setTransformationMatrix(glm::mat4 newTransformationMatrix) {
     this->transformationMatrix = newTransformationMatrix;
-    this->lightDir = glm::mat3(transformationMatrix) * lightDir;
+    this->lightPosition = glm::vec3(transformationMatrix * glm::vec4(lightPosition,1.0));
+    this->lightDir = glm::normalize(lightTarget - lightPosition);
 }
-void LightSource::setLightDir(glm::vec3 lightDir) {
-	this->lightDir = lightDir;
+
+void LightSource::setLightPosition(glm::vec3 lightPosition) {
+    this->lightPosition = lightPosition;
+    this->lightDir = glm::normalize(lightTarget - lightPosition);
 }
+
+void LightSource::setLightTarget(glm::vec3 lightTarget) {
+    this->lightTarget = lightTarget;
+    this->lightDir = glm::normalize(lightTarget - lightPosition);
+}
+
 void LightSource::setLightColor(glm::vec3 lightColor) {
 	this->lightColor = lightColor;
 }
@@ -26,27 +36,47 @@ glm::mat4 LightSource::getTransformationMatrix() {
 glm::vec3 LightSource::getLightDir() {
 	return this->lightDir;
 }
+
+glm::vec3 LightSource::getLightPosition() {
+    return this->lightPosition;
+}
 glm::vec3 LightSource::getLightColor() {
 	return this->lightColor;
 }
 
-glm::mat4 LightSource::computeLightSpaceTrMatrix() {
+float LightSource::getAmbientStrength() {
+    return this->ambientStrength;
+}
+float LightSource::getSpecularStrength() {
+    return this->specularStrength;
+}
+
+glm::vec3 LightSource::getLightTarget() {
+    return this->lightTarget;
+}
+
+glm::mat4 LightSource::computeLightSpaceTrMatrixDirectionalLight() {
     // Return the light-space transformation matrix
-    glm::mat4 lightView = glm::lookAt(lightDir, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    const GLfloat near_plane = 0.1f, far_plane = 5.0f;
-    glm::mat4 lightProjection = glm::ortho(-1.0f, 1.0f, -1.0f, 1.0f, near_plane, far_plane);
+    glm::mat4 lightView = glm::lookAt(lightPosition, glm::vec3(0), glm::vec3(0.0f, 1.0f, 0.0f));
+    const GLfloat near_plane = 0.1f, far_plane = 100.0f;
+    glm::mat4 lightProjection = glm::ortho(-100.0f, 100.0f, 0.0f, 100.0f, near_plane, far_plane);
     glm::mat4 lightSpaceTrMatrix = lightProjection * lightView;
     return lightSpaceTrMatrix;
+}
+
+void LightSource::setLightAttributes(float ambientStrength, float specularStrength) {
+    this->ambientStrength = ambientStrength;
+    this->specularStrength = specularStrength;
 }
 
 void LightSource::move(gps::MOVE_DIRECTION direction) {
     switch (direction) {
     case gps::MOVE_LEFT: {
-        rotate(-1.0, glm::vec3(0.0f, 0.0f, 1.0f));
+        rotate(1.0, glm::vec3(0.0f, 0.0f, 1.0f));
         break;
     }
     case gps::MOVE_RIGHT: {
-        rotate(1.0, glm::vec3(0.0f, 0.0f, 1.0f));
+        rotate(-1.0, glm::vec3(0.0f, 0.0f, 1.0f));
         break;
     }
     case gps::ROTATE_CLOCKWISE: {
@@ -58,19 +88,25 @@ void LightSource::move(gps::MOVE_DIRECTION direction) {
         break;
     }
     case gps::MOVE_UP: {
-        rotate(-1.0, glm::vec3(1.0f, 0.0f, 0.0f));
-        break;
-    }
-    case gps::MOVE_DOWN: {
         rotate(1.0, glm::vec3(1.0f, 0.0f, 0.0f));
         break;
     }
+    case gps::MOVE_DOWN: {
+        rotate(-1.0, glm::vec3(1.0f, 0.0f, 0.0f));
+        break;
+    }
     case gps::MOVE_FORWARD: {
-        // todo: increase light intensity
+        // increase intensity of light
+        if (ambientStrength < 1.0) {
+            ambientStrength += 0.1;
+        }
         break;
     }
     case gps::MOVE_BACKWARD: {
-        // todo: decrease light intensity
+        // decrease intensity of light
+        if (ambientStrength > 0) {
+            ambientStrength -= 0.1;
+        }
         break;
     }
     default: break;
@@ -82,17 +118,3 @@ void LightSource::rotate(float angle, glm::vec3 axis) {
     setTransformationMatrix(glm::rotate(glm::mat4(1.0f), glm::radians(angle), axis));
 }
 
-
-void printMatrix(glm::mat4 matrix) {
-    std::cout << "matrix = " << std::endl;
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            std::cout << matrix[i][j] << " ";
-        }
-        std::cout << std::endl;
-    }
-}
-
-void printVector(glm::vec3 v) {
-    std::cout << "v = (" << v.x << ", " << v.y << ", " << v.z << ");" << std::endl;
-}

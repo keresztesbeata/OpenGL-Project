@@ -2,7 +2,7 @@
 
 namespace gps {
 
-    //Camera constructor
+    //Camera constructors
     Camera::Camera(glm::vec3 cameraPosition, glm::vec3 cameraTarget, glm::vec3 cameraUp) {
         this->cameraPosition = cameraPosition;
         this->cameraTarget = cameraTarget;
@@ -20,6 +20,11 @@ namespace gps {
     glm::vec3 Camera::getCameraPosition() {
         return this->cameraPosition;
     }
+
+    glm::vec3 Camera::getCameraFrontDirection() {
+        return this->cameraFrontDirection;
+    }
+
     // get the camera target
     glm::vec3 Camera::getCameraTarget() {
         return this->cameraTarget;
@@ -31,7 +36,6 @@ namespace gps {
     // set the camera target
     void Camera::setCameraTarget(glm::vec3 newCameraTarget) {
         this->cameraTarget = newCameraTarget;
-        this->cameraFrontDirection = glm::normalize(cameraPosition - cameraTarget);
     }
     // set the camera movement's speed
     void Camera::setCameraSpeed(float speed) {
@@ -59,12 +63,10 @@ namespace gps {
         }
         case MOVE_UP: {
             this->cameraPosition += this->cameraUpDirection * cameraSpeed;
-            this->cameraFrontDirection = glm::normalize(cameraTarget - cameraPosition);
             break;
         }
         case MOVE_DOWN: {
             this->cameraPosition -= this->cameraUpDirection * cameraSpeed;
-            this->cameraFrontDirection = glm::normalize(cameraTarget - cameraPosition);
             break;
         }
         default: break;
