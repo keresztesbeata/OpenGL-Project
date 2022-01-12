@@ -5,7 +5,6 @@ const double PI = std::atan(1.0) * 4;
 
 // helper functions
 float dampedOscillation(float amplitude, float dampingFactor, float oscillationFrequency, float time);
-bool isBackToOriginalPosition(glm::vec3 newPosition, glm::vec3 originalPosition, float minDistance);
 
 // for debugging
 void printVector(glm::vec3 v);
@@ -33,6 +32,10 @@ void Animation::setObjectProperties(float elasticity, float weight) {
 }
 
 void Animation::setCourtDimensions(glm::vec3 reference, float width, float length, float height) {
+	this->courtWidth = width;
+	this->courtLength = length;
+	this->fenceHeight = height;
+
 	glm::mat4 transformCourtCorners = glm::mat4(1.0);
 	transformCourtCorners = glm::scale(transformCourtCorners, glm::vec3(length/2, height, width/2));
 
@@ -44,6 +47,14 @@ void Animation::setCourtDimensions(glm::vec3 reference, float width, float lengt
 	this->u = pX - pO;
 	this->v = pY - pO;
 	this->w = pZ - pO;
+}
+
+void Animation::setGoalProperties(glm::vec3 goalPosition, float width, float height, float maxError) {
+	this->goalPosition = goalPosition;
+	this->maxError = maxError;
+	this->goalWidth = width;
+	this->goalLength = height;
+	this->maxError = maxError;
 }
 
 void Animation::setInitialPosition(glm::vec3 newPosition) {
@@ -120,7 +131,23 @@ bool Animation::isOutsideBasketballCourt() {
 }
 
 bool Animation::isFenceHit() {
-	return currentPosition.y < pY.y;
+	return currentPosition.y <= fenceHeight;
+}
+
+bool Animation::isGoalHit() {
+	return abs(currentPosition.y - goalPosition.y) < goalLength &&
+		abs(currentPosition.x) - abs(goalPosition.x) < goalWidth &&
+		abs(currentPosition.z) - abs(goalPosition.z) <= 0;
+}
+
+bool Animation::isGoalScored() {
+	return glm::length(currentPosition - goalPosition) < 5.0;
+	/*
+	return isGoalHit() &&
+		abs(currentPosition.y - goalPosition.y) < maxError &&
+		abs(currentPosition.x - goalPosition.x) < maxError &&
+		abs(currentPosition.z - goalPosition.z) <= MIN_DIST_FROM_GOAL;
+		*/
 }
 
 void Animation::playAnimation() {
@@ -146,14 +173,21 @@ void Animation::playAnimation() {
 		}
 		default: break;
 	}
-	if (isOutsideBasketballCourt()) {
-		// the ball bounces back if it hits the fence
+	
+	if (isGoalHit()) {
+		std::cout << "hit goal\n";
+		hitAndBounce();
+	}else if (isGoalScored()) {
+		// todo
+		std::cout << "scored a goal\n";
+		animateSpin();
+	}
+	else if (isOutsideBasketballCourt()) {
 		if (isFenceHit()) {
 			std::cout << "hit fence\n";
 			hitAndBounce();
 		}
 	}
-	
 }
 
 void Animation::pickUpBall(glm::vec3 playerPosition) {
@@ -239,6 +273,8 @@ void Animation::spin(glm::vec3 axis) {
 }
 
 void Animation::throwBall(float pitch, float yaw) {
+	printVector(currentPosition);
+
 	// trajectory of the flying ball is a parabola
 	float velocity = 25;
 	float g = 9.8;
@@ -261,12 +297,6 @@ void Animation::throwBall(float pitch, float yaw) {
 
 float dampedOscillation(float amplitude, float dampingFactor, float oscillationFrequency, float time) {
 	return amplitude * std::exp(-dampingFactor * time) * cos(PI * oscillationFrequency * glm::radians(time));
-}
-
-bool isBackToOriginalPosition(glm::vec3 newPosition, glm::vec3 originalPosition, float minDistance) {
-	return abs(newPosition.x - originalPosition.x) < minDistance &&
-		abs(newPosition.z - originalPosition.z) < minDistance &&
-		abs(newPosition.y - originalPosition.y) < minDistance;
 }
 
 /* for debugging */

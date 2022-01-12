@@ -38,21 +38,23 @@ glm::mat4 lightRotation;
 // object's properties
 const float BALL_ELASTICITY = 0.8;
 const float BALL_WEIGHT = 5;
-const float PLAYER_HEIGHT = 12.0;
-const float DIST_FROM_CENTER_OF_FIELD = 50.0f;
+const float DIST_FROM_CENTER_OF_FIELD = 25.0f;
 const glm::vec3 DIST_FROM_BALL = glm::vec3(0, 3, 5);
 const float MIN_DIST_FROM_BALL = 20;
-const float MIN_DIST_FROM_GOAL = 2;
-const float LIGHT_HEIGHT = 10.0f;
+const float PLAYER_HEIGHT = 15.0;
+const float LIGHT_HEIGHT = 30.0f;
 const float GLOBAL_LIGHT_HEIGHT = 30.0f;
-const glm::vec3 GOAL1_POSITION = glm::vec3(-80, 22, -3);
-const glm::vec3 GOAL2_POSITION = glm::vec3(80, 22, 3);
-const float BOARD_WIDTH = 4;
+
+const glm::vec3 GOAL1_POSITION = glm::vec3(-70, 22, 0);
+const glm::vec3 GOAL2_POSITION = glm::vec3(70, 22, 0);
+
+const float BOARD_WIDTH = 5;
 const float BOARD_LENGTH = 5;
+const float MAX_HIT_ERROR = 5;
 
 // court dimensions
-const float BASKETBALL_COURT_LENGTH = 180.0;
-const float BASKETBALL_COURT_WIDTH = 100.0;
+const float BASKETBALL_COURT_LENGTH = 140.0;
+const float BASKETBALL_COURT_WIDTH = 90.0;
 const float BASKETBALL_COURT_HEIGHT = 10.0;
 
 // initial position of objects and camera
@@ -118,6 +120,7 @@ const char nightLightPositionsUniform[NO_NIGHT_LIGHTS][30] = {
     "nightLightPosition4",
     "nightLightPosition5"
 };
+
 const char nightLightTargetUniform[NO_NIGHT_LIGHTS][30] = {
     "nightLightTarget0",
     "nightLightTarget1",
@@ -141,10 +144,6 @@ const char reflectorLightTargetsUniform[4][30] = {
     "reflectorLightTarget3",
 };
 
-// colour constants
-const glm::vec3 ORANGE_COLOUR = glm::vec3(1, 0.5, 0);
-const glm::vec3 GREEN_COLOUR = glm::vec3(0.4, 1, 0.8);
-const glm::vec3 BLUE_COLOUR = glm::vec3(0.5, 0.2, 1);
 const glm::vec3 WHITE_COLOUR = glm::vec3(1, 1, 1);
 
 const float MIN_CUT_OFF_ANGLE_FLASHLIGHTS = 1.0;
@@ -153,6 +152,10 @@ const float MIN_CUT_OFF_ANGLE_SPOTLIGHTS = 5.0;
 float flashLightsCutOffAngle = 5.0; // defines the angle of contained area for flashLights
 float nightLightsCutOffAngle = 18.0; // defines the angle of contained area for lamps light's
 float spotLightsCutOffAngle = 10.0; // defines the angle of contained area for spotLights
+
+float daylightIntensity = 1.0f;
+float incrementLightIntensity = 0.01f;
+bool animateDayCycle = false;
 
 // Animations
 float animationSpeed = 5.0;
@@ -263,6 +266,7 @@ void updateCommonUniformsForShader(gps::Shader shader, glm::mat4 model);
 glm::mat4 getSceneTransformation();
 glm::mat4 getModelForDrawingLightCube(LightSource* lightSource);
 glm::mat4 getModelForDrawingNightLight(glm::vec3 lightPosition);
+void rotateCamera(float xOffset, float yOffset);
 
 // render scene of objects
 void renderScene();
@@ -323,18 +327,18 @@ void selectShader() {
         initUniformsForShader(basicShader);
     }
     if (pressedKeys[GLFW_KEY_2]) {
+        currentShader = NIGHT_LIGHTS;
+        initUniformsForShader(nightLightsShader);
+    }
+    if (pressedKeys[GLFW_KEY_3]) {
         currentShader = FLASH_LIGHT;
         selectedLight = flashLight;
         initUniformsForShader(flashLightShader);
     }
-    if (pressedKeys[GLFW_KEY_3]) {
+    if (pressedKeys[GLFW_KEY_4]) {
         currentShader = SPOT_LIGHT;
         selectedLight = spotLight;
         initUniformsForShader(spotLightShader);
-    }
-    if (pressedKeys[GLFW_KEY_4]) {
-        currentShader = NIGHT_LIGHTS;
-        initUniformsForShader(nightLightsShader);
     }
     if (pressedKeys[GLFW_KEY_5]) {
         currentShader = POINT_LIGHTS;
@@ -349,6 +353,7 @@ void processMovement() {
 }
 
 void processCameraMovement() {
+
     if (pressedKeys[GLFW_KEY_LEFT_SHIFT] || pressedKeys[GLFW_KEY_RIGHT_SHIFT]) {
         // combination of Shift + key is for controlling the objectAnimations
         return;
@@ -383,12 +388,23 @@ void processCameraMovement() {
         myCamera.roll(rollAngle);
     }
     if (pressedKeys[GLFW_KEY_Q]) {
-        cameraAngle -= 1.0f;
+        rotateCamera(-1.0, 0.0);
     }
     if (pressedKeys[GLFW_KEY_E]) {
+        rotateCamera(1.0, 0.0);
+    }
+    if (pressedKeys[GLFW_KEY_LEFT]) {
+        cameraAngle -= 1.0f;
+    }
+    if (pressedKeys[GLFW_KEY_RIGHT]) {
         cameraAngle += 1.0f;
     }
-
+    if (pressedKeys[GLFW_KEY_UP]) {
+        rotateCamera(0.0, 1.0);
+    }
+    if (pressedKeys[GLFW_KEY_DOWN]) {
+        rotateCamera(0.0, -1.0);
+    }
     if (ballAnimation.isBallPickedUp()) {
         ballAnimation.setInitialPosition(myCamera.getCameraPosition() - DIST_FROM_BALL);
     }
@@ -407,6 +423,23 @@ void selectLightSource() {
 }
 
 void processLightMovement() {
+
+    if (animateDayCycle) {
+        if (daylightIntensity <= 0.001 || daylightIntensity >= 0.999) {
+            incrementLightIntensity *= -1;
+        }
+        daylightIntensity += incrementLightIntensity;
+
+        if (daylightIntensity < 0.5) {
+            currentShader = NIGHT_LIGHTS;
+            initUniformsForShader(nightLightsShader);
+        }
+        else if (daylightIntensity >= 0.5) {
+            currentShader = BASIC;
+            selectedLight = directionalLight;
+            initUniformsForShader(basicShader);
+        }
+    }
     
     // select a light source
     selectLightSource();
@@ -428,22 +461,24 @@ void processLightMovement() {
     if (pressedKeys[GLFW_KEY_N]) {
         selectedLight->move(gps::MOVE_BACKWARD);
     }
-}
 
-bool isGoalHit() {
-   glm::vec3 currentPosition = ballAnimation.getCurrentPosition();
-   return abs(currentPosition.y - GOAL1_POSITION.y) < BOARD_WIDTH &&
-       abs(currentPosition.y - GOAL1_POSITION.y) > BOARD_WIDTH - 5 &&
-       abs(currentPosition.x - GOAL1_POSITION.x) < BOARD_LENGTH &&
-       abs(currentPosition.x - GOAL1_POSITION.x) > BOARD_LENGTH - 5 &&
-       abs(currentPosition.z - GOAL1_POSITION.z) < MIN_DIST_FROM_GOAL;
-}
+    // control the light intensity (= daylight)
+    if (pressedKeys[GLFW_KEY_LEFT_ALT]) {
+        daylightIntensity -= 0.01f;
+    }
 
-bool isGoalScore() {
-    glm::vec3 currentPosition = ballAnimation.getCurrentPosition();
-    return abs(currentPosition.y - GOAL1_POSITION.y) < BOARD_WIDTH - 5 &&
-        abs(currentPosition.x - GOAL1_POSITION.x) < BOARD_LENGTH - 5 &&
-        abs(currentPosition.z - GOAL1_POSITION.z) < MIN_DIST_FROM_GOAL;
+    if (pressedKeys[GLFW_KEY_RIGHT_ALT]) {
+        daylightIntensity += 0.01f;
+    }
+
+    // start day-cycle animation
+    if (pressedKeys[GLFW_KEY_SPACE]) {
+        animateDayCycle = true;
+    }
+    // stop day-cycle animation
+    if (pressedKeys[GLFW_KEY_V]) {
+        animateDayCycle = false;
+    }
 }
 
 void processObjectMovement() {
@@ -458,19 +493,6 @@ void processObjectMovement() {
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_F]) {
         // disable wireframe
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-    }
-
-    if (isGoalHit()) {
-        std::cout << "goal!" << std::endl;
-        // todo display success!!
-        ballAnimation.animateBounce();
-        goto ANIMATE;
-    }
-
-    if (isGoalScore()) {
-        std::cout << "missed!" << std::endl;
-        ballAnimation.hitAndBounce();
-        goto ANIMATE;
     }
     
     if (pressedKeys[GLFW_KEY_LEFT_CONTROL] && pressedKeys[GLFW_KEY_P]) {
@@ -576,6 +598,7 @@ void updateUniforms(gps::Shader shader, glm::mat4 model, bool depthPass) {
             break;
         }
         case NIGHT_LIGHTS: {
+            glUniform1f(glGetUniformLocation(shader.shaderProgram, "ambientStrength"), daylightIntensity);
             break;
         }
         case POINT_LIGHTS: {
@@ -628,7 +651,7 @@ glm::mat4 getSceneTransformation() {
 
 void drawObjects(gps::Shader shader, bool depthPass) {
     shader.useShaderProgram();
-  
+ 
     model = getSceneTransformation();
     // draw ball
     glm::mat4 ballTransformation = ballAnimation.getTransformationMatrix();
@@ -747,12 +770,14 @@ void renderScene() {
     drawLightSources(lightShader);
 
     // draw the skybox last
+    skyboxShader.useShaderProgram();
+    glUniform1f(glGetUniformLocation(skyboxShader.shaderProgram, "ambientStrength"), daylightIntensity);
     mySkyBox.Draw(skyboxShader, view, projection);
 }
 
 void initModels() {
     basketBall.LoadModel("models/basketball/basketball.obj", "models/basketball/");
-    basketBallCourt.LoadModel("models/basketball_court_outdoor/basketball_court_outdoor.obj", "models/basketball_court_outdoor/");
+    basketBallCourt.LoadModel("models/basketball_court_outdoor/no_field/basketball_court2.obj", "models/basketball_court_outdoor/no_field/");
     lightCube.LoadModel("models/cube/cube.obj");
     leftLight.LoadModel("models/cube/cube.obj");
     rightLight.LoadModel("models/cube/cube.obj");
@@ -761,6 +786,7 @@ void initModels() {
 
 void initAnimations() {
     ballAnimation.setCourtDimensions(glm::vec3(0,0,0), BASKETBALL_COURT_WIDTH, BASKETBALL_COURT_LENGTH, BASKETBALL_COURT_HEIGHT);
+    ballAnimation.setGoalProperties(GOAL1_POSITION, BOARD_WIDTH, BOARD_LENGTH, MAX_HIT_ERROR);
     ballAnimation.setObjectProperties(BALL_ELASTICITY, BALL_WEIGHT);
 }
 
@@ -872,6 +898,7 @@ void initUniformsForShader(gps::Shader shader) {
 
         cutOffAngleLoc = glGetUniformLocation(shader.shaderProgram, "cutOffAngle");
         glUniform1f(glGetUniformLocation(shader.shaderProgram, "cutOffAngle"), cos(glm::radians(nightLightsCutOffAngle)));
+        glUniform1f(glGetUniformLocation(shader.shaderProgram, "ambientStrength"), daylightIntensity);
     }
     else {
         // send light dir to shader
@@ -894,6 +921,7 @@ void initUniforms() {
     skyboxShader.useShaderProgram();
     glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
     glUniformMatrix4fv(glGetUniformLocation(skyboxShader.shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform1f(glGetUniformLocation(skyboxShader.shaderProgram, "ambientStrength"), daylightIntensity);
 }
 
 // must be called before initUniforms()!!!
@@ -1013,8 +1041,13 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
 
     xoffset *= mouseSensitivity;
     yoffset *= mouseSensitivity;
-    yaw += xoffset;
-    pitch += yoffset * 2;
+    
+    rotateCamera(xoffset, yoffset);
+}
+
+void rotateCamera(float xOffset, float yOffset) {
+    yaw += xOffset;
+    pitch += yOffset * 2;
 
     if (pitch >= 89) {
         pitch = 89;

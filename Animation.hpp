@@ -17,6 +17,7 @@ public:
 	// setters
 	void setObjectProperties(float elasticity, float weight);
 	void setCourtDimensions(glm::vec3 reference, float width, float length, float height);
+	void setGoalProperties(glm::vec3 goalPosition, float width, float length, float maxError);
 	void setInitialPosition(glm::vec3 newPosition);
 	void setTargetPosition(glm::vec3 newPosition);
 	void setAnimationSpeed(float speed);
@@ -38,8 +39,8 @@ public:
 	bool isAnimationPlaying(); 
 	bool isOutsideBasketballCourt();
 	bool isBallPickedUp();
+	bool isGoalScored();
 	virtual void playAnimation();
-	void hitAndBounce();
 
 private:
 	glm::mat4 transformationMatrix;
@@ -69,11 +70,12 @@ private:
 	void bounce(float initialHeight);
 	void spin(glm::vec3 axis);
 	void throwBall(float pitch, float yaw);
-	void hitWall();
+	void hitAndBounce();
 
 	void startAnimation(ANIMATION_TYPE animationType);
 	void initAnimation(glm::vec3 initialPosition, float animationSpeed);
 	bool isFenceHit();
+	bool isGoalHit();
 
 	// animation constants
 	const float MIN_BOUNCE = 0.0001;
@@ -87,6 +89,19 @@ private:
 	glm::vec3 pZ = glm::vec3(-1, 0, 1);
 	glm::vec3 pY = glm::vec3(-1, 1, -1);
 	glm::vec3 pX = glm::vec3(1, 0, -1);
+
+	// the dimensions of the basketball court
+	float courtWidth;
+	float courtLength;
+	float fenceHeight;
+
+	glm::vec3 goalPosition;
+	float goalWidth;
+	float goalLength;
+	// max allowed offset from where hitting the goal is considered to be a score
+	float maxError;
+	// specifies the min dist from the goal, when the ball is considered close enough to pass through the hoop
+	const float MIN_DIST_FROM_GOAL = 2;
 
 	// define the coordinate system for the 3d shape representing the court's boundaries
 	glm::vec3 u;
