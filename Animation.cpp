@@ -105,7 +105,6 @@ void Animation::stopAnimation() {
 	if (isOutsideBasketballCourt()) {
 		// immediately return the ball to the player if it goes beyond the fence, after the ball has fallen down on the other side of the fence (in case the ball was thrown)
 		pickUpBall(this->initialPosition);
-		std::cout << "outside the court\n";
 	}
 }
 
@@ -131,7 +130,7 @@ bool Animation::isOutsideBasketballCourt() {
 }
 
 bool Animation::isFenceHit() {
-	return currentPosition.y <= fenceHeight;
+	return isOutsideBasketballCourt() && currentPosition.y <= fenceHeight;
 }
 
 bool Animation::isGoalHit() {
@@ -140,19 +139,7 @@ bool Animation::isGoalHit() {
 		abs(currentPosition.z) - abs(goalPosition.z) <= 0;
 }
 
-bool Animation::isGoalScored() {
-	return glm::length(currentPosition - goalPosition) < 5.0;
-	/*
-	return isGoalHit() &&
-		abs(currentPosition.y - goalPosition.y) < maxError &&
-		abs(currentPosition.x - goalPosition.x) < maxError &&
-		abs(currentPosition.z - goalPosition.z) <= MIN_DIST_FROM_GOAL;
-		*/
-}
-
 void Animation::playAnimation() {
-
-	glm::vec3 prevPosition = currentPosition;
 
 	switch (currentAnimation) {
 		case BOUNCE_ANIMATION: {
@@ -174,17 +161,8 @@ void Animation::playAnimation() {
 		default: break;
 	}
 	
-	if (isGoalHit()) {
-		std::cout << "hit goal\n";
-		hitAndBounce();
-	}else if (isGoalScored()) {
-		// todo
-		std::cout << "scored a goal\n";
-		animateSpin();
-	}
-	else if (isOutsideBasketballCourt()) {
+	if (isOutsideBasketballCourt()) {
 		if (isFenceHit()) {
-			std::cout << "hit fence\n";
 			hitAndBounce();
 		}
 	}
@@ -273,8 +251,6 @@ void Animation::spin(glm::vec3 axis) {
 }
 
 void Animation::throwBall(float pitch, float yaw) {
-	printVector(currentPosition);
-
 	// trajectory of the flying ball is a parabola
 	float velocity = 25;
 	float g = 9.8;

@@ -35,6 +35,10 @@ namespace gps {
         void roll(float rollAngle);
         
     private:
+
+        // check and make sure that the camera remains inside the predefined rectangle
+        void checkBoundaries();
+
         glm::vec3 cameraPosition;
         glm::vec3 cameraTarget;
         glm::vec3 cameraFrontDirection;

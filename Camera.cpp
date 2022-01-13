@@ -1,5 +1,7 @@
 #include "Camera.hpp"
 
+#include <iostream>
+
 namespace gps {
 
     //Camera constructors
@@ -44,6 +46,7 @@ namespace gps {
 
     //update the camera internal parameters following a camera move event
     void Camera::move(MOVE_DIRECTION direction) {
+
         switch (direction) {
         case MOVE_LEFT: {
             this->cameraPosition -= this->cameraRightDirection * cameraSpeed;
@@ -70,6 +73,26 @@ namespace gps {
             break;
         }
         default: break;
+        }
+
+        checkBoundaries();
+    }
+
+    void Camera::checkBoundaries() {
+        if (this->cameraPosition.y < 0.1f) {
+            this->cameraPosition.y = 0.1;
+        }
+        if (this->cameraPosition.z > 55) {
+            this->cameraPosition.z = 55;
+        }
+        else if (this->cameraPosition.z < -55) {
+            this->cameraPosition.z = -55;
+        }
+        if (this->cameraPosition.x > 30) {
+            this->cameraPosition.x = 30;
+        }
+        else if (this->cameraPosition.x < -30) {
+            this->cameraPosition.x = -30;
         }
     }
 

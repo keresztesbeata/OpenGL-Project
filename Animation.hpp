@@ -39,7 +39,6 @@ public:
 	bool isAnimationPlaying(); 
 	bool isOutsideBasketballCourt();
 	bool isBallPickedUp();
-	bool isGoalScored();
 	virtual void playAnimation();
 
 private:

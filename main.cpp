@@ -40,13 +40,13 @@ const float BALL_ELASTICITY = 0.8;
 const float BALL_WEIGHT = 5;
 const float DIST_FROM_CENTER_OF_FIELD = 25.0f;
 const glm::vec3 DIST_FROM_BALL = glm::vec3(0, 3, 5);
-const float MIN_DIST_FROM_BALL = 20;
+const float MIN_DIST_FROM_BALL = 10;
 const float PLAYER_HEIGHT = 15.0;
-const float LIGHT_HEIGHT = 30.0f;
+const float LIGHT_HEIGHT = 35.0f;
 const float GLOBAL_LIGHT_HEIGHT = 30.0f;
 
-const glm::vec3 GOAL1_POSITION = glm::vec3(-70, 22, 0);
-const glm::vec3 GOAL2_POSITION = glm::vec3(70, 22, 0);
+const glm::vec3 GOAL1_POSITION = glm::vec3(0, 22, -45);
+const glm::vec3 GOAL2_POSITION = glm::vec3(0, 22, 45);
 
 const float BOARD_WIDTH = 5;
 const float BOARD_LENGTH = 5;
@@ -61,7 +61,7 @@ const float BASKETBALL_COURT_HEIGHT = 10.0;
 glm::vec3 ballInitialPosition = glm::vec3(0.0f, 0.0f, 0.0f);
 glm::vec3 cameraInitialPosition = glm::vec3(0.0, PLAYER_HEIGHT, DIST_FROM_CENTER_OF_FIELD);
 glm::vec3 globalLightPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT, 1.0);
-glm::vec3 spotLightInitialPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT/3, 1.0);
+glm::vec3 spotLightInitialPosition = glm::vec3(0.0, GLOBAL_LIGHT_HEIGHT, 1.0);
 
 // light sources
 LightSource* directionalLight;
@@ -74,9 +74,9 @@ LightSource* pointLightLeft;
 LightSource* pointLightRight;
 
 // initial light position
-glm::vec3 initialPointLightLeftPosition = glm::vec3(-10.0, LIGHT_HEIGHT, 1.0);
-glm::vec3 initialPointLightMiddlePosition = glm::vec3(0.0, LIGHT_HEIGHT * 3, 1.0);
-glm::vec3 initialPointLightRightPosition = glm::vec3(10.0, LIGHT_HEIGHT * 2, 1.0);
+glm::vec3 initialPointLightLeftPosition = glm::vec3(-20.0, LIGHT_HEIGHT, -1.0);
+glm::vec3 initialPointLightMiddlePosition = glm::vec3(0.0, LIGHT_HEIGHT, 0.0);
+glm::vec3 initialPointLightRightPosition = glm::vec3(20.0, LIGHT_HEIGHT, 1.0);
 
 const int NO_NIGHT_LIGHTS = 6;
 
@@ -99,10 +99,10 @@ glm::vec3 nightLightTargets[NO_NIGHT_LIGHTS] = {
 };
 
 glm::vec3 reflectorLightPositions[4] = {
-        glm::vec3(-80.0, 25.0, 3.0),
-        glm::vec3(-80.0, 25.0, -3.0),
-        glm::vec3(70.0, 25.0, 3.0),
-        glm::vec3(70.0, 25.0, -3.0)
+        glm::vec3(-79.0, 25.0, 3.0),
+        glm::vec3(-79.0, 25.0, -3.0),
+        glm::vec3(69.0, 25.0, 3.0),
+        glm::vec3(69.0, 25.0, -3.0)
 };
 
 glm::vec3 reflectorLightTargets[4] = {
@@ -323,11 +323,13 @@ int main(int argc, const char* argv[]) {
 void selectShader() {
     if (pressedKeys[GLFW_KEY_1]) {
         currentShader = BASIC;
+        daylightIntensity = 1.0f;
         selectedLight = directionalLight;
         initUniformsForShader(basicShader);
     }
     if (pressedKeys[GLFW_KEY_2]) {
         currentShader = NIGHT_LIGHTS;
+        daylightIntensity = 0.01f;
         initUniformsForShader(nightLightsShader);
     }
     if (pressedKeys[GLFW_KEY_3]) {
@@ -337,11 +339,13 @@ void selectShader() {
     }
     if (pressedKeys[GLFW_KEY_4]) {
         currentShader = SPOT_LIGHT;
+        daylightIntensity = 0.01f;
         selectedLight = spotLight;
         initUniformsForShader(spotLightShader);
     }
     if (pressedKeys[GLFW_KEY_5]) {
         currentShader = POINT_LIGHTS;
+        daylightIntensity = 0.01f;
         initUniformsForShader(pointLightsShader);
     }
 }
@@ -411,13 +415,13 @@ void processCameraMovement() {
 }
 
 void selectLightSource() {
-    if (pressedKeys[GLFW_KEY_5]) {
+    if (pressedKeys[GLFW_KEY_6]) {
         selectedLight = pointLightLeft;
     }
-    if (pressedKeys[GLFW_KEY_6]) {
+    if (pressedKeys[GLFW_KEY_7]) {
         selectedLight = pointLightMiddle;
     }
-    if (pressedKeys[GLFW_KEY_7]) {
+    if (pressedKeys[GLFW_KEY_8]) {
         selectedLight = pointLightRight;
     }
 }
@@ -451,6 +455,12 @@ void processLightMovement() {
     }
     if (pressedKeys[GLFW_KEY_U]) {
         selectedLight->move(gps::ROTATE_CLOCKWISE);
+    }
+    if (pressedKeys[GLFW_KEY_I]) {
+        selectedLight->move(gps::MOVE_UP);
+    }
+    if (pressedKeys[GLFW_KEY_K]) {
+        selectedLight->move(gps::MOVE_DOWN);
     }
     if (pressedKeys[GLFW_KEY_O]) {
         selectedLight->move(gps::ROTATE_COUNTER_CLOCKWISE);
@@ -777,7 +787,7 @@ void renderScene() {
 
 void initModels() {
     basketBall.LoadModel("models/basketball/basketball.obj", "models/basketball/");
-    basketBallCourt.LoadModel("models/basketball_court_outdoor/no_field/basketball_court2.obj", "models/basketball_court_outdoor/no_field/");
+    basketBallCourt.LoadModel("models/basketball_court_outdoor/basketball_court.obj", "models/basketball_court_outdoor/");
     lightCube.LoadModel("models/cube/cube.obj");
     leftLight.LoadModel("models/cube/cube.obj");
     rightLight.LoadModel("models/cube/cube.obj");
@@ -938,7 +948,7 @@ void initLightSources() {
     for (int i = 0; i < 4; i++) {
         reflectorLights[i] = new LightSource(reflectorLightPositions[i], reflectorLightTargets[i], WHITE_COLOUR);
     }
-    pointLightMiddle = new LightSource(initialPointLightLeftPosition, ballInitialPosition, WHITE_COLOUR);
+    pointLightMiddle = new LightSource(initialPointLightMiddlePosition, ballInitialPosition, WHITE_COLOUR);
     pointLightLeft = new LightSource(initialPointLightLeftPosition, ballInitialPosition, WHITE_COLOUR);
     pointLightRight = new LightSource(initialPointLightRightPosition, ballInitialPosition, WHITE_COLOUR);
 }
